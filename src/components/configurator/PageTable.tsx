@@ -41,8 +41,8 @@ export const PageTable: React.FC<PageTableProps> = ({
   const isClient = currentRole === 'client';
   const isAdmin = currentRole === 'admin';
 
-  // Step filter : 'all' | 'phase-core' | 'phase-locator' | 'phase-options'
-  const [activePhase, setActivePhase] = useState<'all' | 'phase-core' | 'phase-locator' | 'phase-options'>('all');
+  // Step filter : 'phase-core' (default: 8 pages 592€) | 'phase-locator' | 'phase-options' | 'all'
+  const [activePhase, setActivePhase] = useState<'all' | 'phase-core' | 'phase-locator' | 'phase-options'>('phase-core');
   const [editingIncludedId, setEditingIncludedId] = useState<string | null>(null);
   const [tempIncludedText, setTempIncludedText] = useState<string>('');
 
@@ -127,29 +127,9 @@ export const PageTable: React.FC<PageTableProps> = ({
           )}
         </div>
 
-        {/* Phase Stepper Tabs (Eliminates showing everything simultaneously!) */}
+        {/* Phase Stepper Tabs (Linear sequence to avoid cognitive overload) */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
           
-          <button
-            type="button"
-            onClick={() => setActivePhase('all')}
-            className={`p-3 rounded-xl border text-left transition-all ${
-              activePhase === 'all'
-                ? 'border-slate-900 bg-slate-900 text-white shadow-xs font-bold'
-                : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold">Vue Complète</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded ${activePhase === 'all' ? 'bg-slate-800 text-slate-200' : 'bg-slate-200 text-slate-600'}`}>
-                {modules.length}
-              </span>
-            </div>
-            <span className={`text-[11px] block mt-0.5 ${activePhase === 'all' ? 'text-slate-300' : 'text-slate-500'}`}>
-              Tous les modules réunis
-            </span>
-          </button>
-
           <button
             type="button"
             onClick={() => setActivePhase('phase-core')}
@@ -161,15 +141,15 @@ export const PageTable: React.FC<PageTableProps> = ({
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold flex items-center space-x-1">
-                <Box className="w-3 h-3 text-emerald-700" />
-                <span>1. Socle 8 Pages</span>
+                <Box className="w-3.5 h-3.5 text-emerald-700" />
+                <span>1. Socle (8 Pages)</span>
               </span>
               <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900">
                 592 €
               </span>
             </div>
             <span className="text-[11px] text-slate-500 block mt-0.5">
-              Cœur de site (3,65 j dév)
+              Cœur de site (3,65 j)
             </span>
           </button>
 
@@ -184,7 +164,7 @@ export const PageTable: React.FC<PageTableProps> = ({
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold flex items-center space-x-1">
-                <MapPin className="w-3 h-3 text-emerald-700" />
+                <MapPin className="w-3.5 h-3.5 text-emerald-700" />
                 <span>2. Store Locator</span>
               </span>
               <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900">
@@ -192,7 +172,7 @@ export const PageTable: React.FC<PageTableProps> = ({
               </span>
             </div>
             <span className="text-[11px] text-emerald-800 block mt-0.5 font-medium">
-              = Base exacte 642 € HT
+              = Base ferme 642 € HT
             </span>
           </button>
 
@@ -207,7 +187,7 @@ export const PageTable: React.FC<PageTableProps> = ({
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold flex items-center space-x-1">
-                <Sparkles className="w-3 h-3 text-indigo-600" />
+                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
                 <span>3. Options</span>
               </span>
               <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800">
@@ -216,6 +196,26 @@ export const PageTable: React.FC<PageTableProps> = ({
             </div>
             <span className="text-[11px] text-slate-500 block mt-0.5">
               Réservation, Vente, etc.
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActivePhase('all')}
+            className={`p-3 rounded-xl border text-left transition-all ${
+              activePhase === 'all'
+                ? 'border-slate-900 bg-slate-900 text-white shadow-xs font-bold'
+                : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold">4. Récap Global</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded ${activePhase === 'all' ? 'bg-slate-800 text-slate-200' : 'bg-slate-200 text-slate-600'}`}>
+                {modules.length}
+              </span>
+            </div>
+            <span className={`text-[11px] block mt-0.5 ${activePhase === 'all' ? 'text-slate-300' : 'text-slate-500'}`}>
+              Tous les modules réunis
             </span>
           </button>
 

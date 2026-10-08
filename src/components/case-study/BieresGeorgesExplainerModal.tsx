@@ -192,7 +192,7 @@ export const BieresGeorgesExplainerModal: React.FC<BieresGeorgesExplainerModalPr
               </h4>
             </div>
             <p className="text-emerald-200 text-xs leading-relaxed">
-              Pour éviter toute contestation future avec 33 Degrés ou les clients finaux :
+              Pour éviter toute contestation future avec Roeum Mak ou les clients finaux :
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 text-xs">
               <div className="bg-emerald-900/60 p-3 rounded-lg border border-emerald-800">
@@ -205,7 +205,7 @@ export const BieresGeorgesExplainerModal: React.FC<BieresGeorgesExplainerModalPr
               </div>
               <div className="bg-emerald-900/60 p-3 rounded-lg border border-emerald-800">
                 <strong className="text-white block mb-1">3. Transparence Tripartite</strong>
-                Le partenaire (33 Degrés) règle sa marge en direct sans frottement et le client signe sur un montant garanti.
+                Le partenaire (Roeum Mak) règle sa marge en direct sans frottement et le client signe sur un montant garanti.
               </div>
               <div className="bg-emerald-900/60 p-3 rounded-lg border border-emerald-800">
                 <strong className="text-white block mb-1">4. Signature Numérique Horodatée</strong>

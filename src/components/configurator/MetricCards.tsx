@@ -158,7 +158,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
             <span className="text-xs text-slate-500 font-medium">gain</span>
           </div>
           <div className="mt-2 text-xs text-slate-600">
-            {isPartner ? 'Votre marge d’agence brute' : 'Marge commerciale concédée'}
+            {isPartner ? 'Votre marge commerciale brute (Roeum Mak)' : 'Marge commerciale concédée'}
           </div>
         </div>
       ) : (

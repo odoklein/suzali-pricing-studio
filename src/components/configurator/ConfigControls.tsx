@@ -258,14 +258,14 @@ export const ConfigControls: React.FC<ConfigControlsProps> = ({
               </div>
             </div>
 
-            {/* Colonne 3: Partenaire & Émetteur */}
+            {/* Colonne 3: Partenaire Commercial (Roeum Mak) */}
             <div className="space-y-3">
               <h4 className="font-semibold text-slate-800 flex items-center space-x-1.5">
                 <Building className="w-3.5 h-3.5 text-indigo-700" />
-                <span>Agence Partenaire</span>
+                <span>Partenaire Commercial</span>
               </h4>
               <div>
-                <label className="block text-slate-500 mb-1">Société Partenaire</label>
+                <label className="block text-slate-500 mb-1">Partenaire / Société</label>
                 <input
                   type="text"
                   value={metadata.partnerCompany}

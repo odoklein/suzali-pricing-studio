@@ -14,6 +14,7 @@ import { ShareModal } from './components/share/ShareModal';
 import { ArchitectureModal } from './components/architecture/ArchitectureModal';
 import { BieresGeorgesExplainerModal } from './components/case-study/BieresGeorgesExplainerModal';
 import { PortalSelectorModal } from './components/portal/PortalSelectorModal';
+import { PortalGate } from './components/portal/PortalGate';
 
 import { 
   Printer,
@@ -23,15 +24,25 @@ import {
   UserCheck,
   Database,
   Check,
-  RefreshCw
+  RefreshCw,
+  LogOut
 } from 'lucide-react';
 
 const STORAGE_KEY_MODULES = 'suzali_pricing_modules_v3';
 const STORAGE_KEY_SETTINGS = 'suzali_pricing_settings_v3';
 const STORAGE_KEY_METADATA = 'suzali_pricing_metadata_v3';
 const STORAGE_KEY_ROLE = 'suzali_pricing_role_v3';
+const STORAGE_KEY_AUTH = 'suzali_pricing_auth_v3';
 
 export const App: React.FC = () => {
+  // Authentication & PIN gate state
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const savedAuth = sessionStorage.getItem(STORAGE_KEY_AUTH);
+      if (savedAuth === 'true') return true;
+    }
+    return false;
+  });
   // 1. Detect role from URL hash or localStorage
   const detectInitialRole = (): UserRole => {
     if (typeof window !== 'undefined') {
@@ -143,6 +154,24 @@ export const App: React.FC = () => {
   }, [modules, settings]);
 
   // Handlers
+  const handleUnlockPortal = (role: UserRole) => {
+    setCurrentRole(role);
+    setIsAuthenticated(true);
+    sessionStorage.setItem(STORAGE_KEY_AUTH, 'true');
+    if (role === 'client') {
+      window.location.hash = 'client-view';
+    } else if (role === 'partner') {
+      window.location.hash = 'partner-view';
+    } else {
+      window.location.hash = 'admin-view';
+    }
+  };
+
+  const handleLockPortal = () => {
+    setIsAuthenticated(false);
+    sessionStorage.removeItem(STORAGE_KEY_AUTH);
+  };
+
   const handleRoleChange = (newRole: UserRole) => {
     setCurrentRole(newRole);
     if (newRole === 'client') {
@@ -248,6 +277,11 @@ export const App: React.FC = () => {
     window.print();
   };
 
+  // If not authenticated, display the PortalGate PIN screen
+  if (!isAuthenticated) {
+    return <PortalGate onUnlock={handleUnlockPortal} />;
+  }
+
   return (
     <div className="min-h-screen bg-white text-slate-900 selection:bg-emerald-100 selection:text-emerald-950 font-sans">
       
@@ -284,6 +318,7 @@ export const App: React.FC = () => {
             onOpenPortalSelector={() => setIsPortalSelectorOpen(true)}
             onReset={handleReset}
             onPrint={handlePrint}
+            onLock={handleLockPortal}
             quoteNumber={metadata.quoteNumber}
           />
 
@@ -324,14 +359,14 @@ export const App: React.FC = () => {
                 <div className="space-y-1">
                   <div className="flex items-center space-x-2">
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500 text-white font-mono">
-                      ESPACE PARTENAIRE 33 DEGRÉS
+                      ESPACE PARTENAIRE • ROEUM MAK
                     </span>
                     <span className="text-xs text-indigo-200">
                       Dossier Client : {metadata.clientCompany}
                     </span>
                   </div>
                   <h2 className="text-lg md:text-xl font-bold tracking-tight text-white">
-                    Gouvernance Tarifaire & Marge Commerciale d'Agence
+                    Gouvernance Tarifaire & Marge Commerciale
                   </h2>
                   <p className="text-xs text-indigo-200/90 max-w-2xl leading-relaxed">
                     Suzali produit la prestation sur la base technique. Ajustez votre marge commerciale ci-dessous pour fixer votre prix de vente final à Julien, puis générez son lien d'accès sécurisé (#client-view).
@@ -516,6 +551,14 @@ export const App: React.FC = () => {
                   className="hover:text-slate-900 transition-colors text-indigo-700 font-medium"
                 >
                   Changer de portail
+                </button>
+                <button
+                  onClick={handleLockPortal}
+                  className="hover:text-rose-700 transition-colors text-slate-500 flex items-center space-x-1"
+                  title="Verrouiller la session et revenir à l'écran de code"
+                >
+                  <LogOut className="w-3 h-3 text-slate-400" />
+                  <span>Verrouiller</span>
                 </button>
                 <span className="text-slate-400">
                   Base Supabase connectée (eu-west-2)

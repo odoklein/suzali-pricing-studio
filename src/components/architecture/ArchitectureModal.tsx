@@ -30,7 +30,7 @@ CREATE TYPE user_role_enum AS ENUM ('suzali_admin', 'partner_agency', 'end_clien
 CREATE TYPE pricing_mode_enum AS ENUM ('forfait', 'tjm');
 CREATE TYPE quote_status_enum AS ENUM ('draft', 'sent_to_partner', 'sent_to_client', 'approved', 'rejected');
 
--- 2. ORGANIZATIONS (Suzali, Partenaires ex: 33 Degrés, Clients ex: Bières Georges)
+-- 2. ORGANIZATIONS (Suzali, Partenaires ex: Roeum Mak, Clients ex: Bières Georges)
 CREATE TABLE organizations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
@@ -56,7 +56,7 @@ CREATE TABLE quotes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     quote_number VARCHAR(50) UNIQUE NOT NULL, -- ex: SZ-2026-BG-642
     provider_org_id UUID REFERENCES organizations(id) NOT NULL, -- Suzali
-    partner_org_id UUID REFERENCES organizations(id),          -- 33 Degrés
+    partner_org_id UUID REFERENCES organizations(id),          -- Roeum Mak
     client_org_id UUID REFERENCES organizations(id) NOT NULL,   -- Bières Georges
     project_name VARCHAR(255) NOT NULL,
     pricing_mode pricing_mode_enum DEFAULT 'forfait',
@@ -217,7 +217,7 @@ CREATE POLICY client_view_quote ON quotes
                     <tr className="bg-slate-100 text-slate-700 font-bold">
                       <th className="py-2.5 px-3">Fonctionnalité / Donnée</th>
                       <th className="py-2.5 px-3 text-center">Suzali Admin</th>
-                      <th className="py-2.5 px-3 text-center">Agence Partenaire (33°)</th>
+                      <th className="py-2.5 px-3 text-center">Partenaire (Roeum Mak)</th>
                       <th className="py-2.5 px-3 text-center">Client Final (Bières Georges)</th>
                     </tr>
                   </thead>

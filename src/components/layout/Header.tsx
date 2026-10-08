@@ -19,6 +19,7 @@ interface HeaderProps {
   onOpenPortalSelector: () => void;
   onReset: () => void;
   onPrint: () => void;
+  onLock?: () => void;
   quoteNumber: string;
 }
 
@@ -30,6 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenPortalSelector,
   onReset,
   onPrint,
+  onLock,
   quoteNumber,
 }) => {
   const isClient = currentRole === 'client';
@@ -49,7 +51,7 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             ) : isPartner ? (
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-900 to-indigo-950 flex items-center justify-center shadow-xs border border-indigo-800/40 text-indigo-200 font-bold">
-                <span className="text-sm font-mono tracking-tight">33°</span>
+                <span className="text-sm font-mono tracking-tight">RM</span>
               </div>
             ) : (
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-950 via-emerald-900 to-green-950 flex items-center justify-center shadow-xs border border-emerald-800/40 text-emerald-300 font-bold">
@@ -71,10 +73,10 @@ export const Header: React.FC<HeaderProps> = ({
                 ) : isPartner ? (
                   <>
                     <span className="font-bold text-base md:text-lg text-slate-900 tracking-tight">
-                      33 DEGRÉS
+                      ROEUM MAK
                     </span>
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200">
-                      Espace Partenaire Revendeur
+                      Espace Partenaire Commercial
                     </span>
                   </>
                 ) : (
@@ -167,6 +169,17 @@ export const Header: React.FC<HeaderProps> = ({
               <ArrowLeftRight className="w-3.5 h-3.5 text-slate-500" />
               <span className="hidden md:inline">Espaces</span>
             </button>
+
+            {/* Lock/Logout button */}
+            {onLock && (
+              <button
+                onClick={onLock}
+                title="Verrouiller la session (Code PIN requis)"
+                className="p-1.5 text-slate-400 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200"
+              >
+                <Lock className="w-3.5 h-3.5" />
+              </button>
+            )}
 
             {/* Reset button (Admin only) */}
             {isAdmin && (
