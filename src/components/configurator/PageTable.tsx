@@ -94,7 +94,7 @@ export const PageTable: React.FC<PageTableProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden mb-8">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-8">
       
       {/* Table Header with Structured Phase Stepper */}
       <div className="p-5 border-b border-slate-100">
@@ -112,7 +112,7 @@ export const PageTable: React.FC<PageTableProps> = ({
             <p className="text-xs text-slate-500 mt-1">
               {isClient
                 ? 'Naviguez entre le socle de base (8 pages), le store locator et les options facultatives.'
-                : 'Structure ordonnée : Socle 592 € HT (3,65 j) + Store Locator 50 € HT = Base officielle 642 € HT.'}
+                : 'Structure ordonnée : Socle 592 € HT + Store Locator 50 € HT = Base officielle 642 € HT.'}
             </p>
           </div>
 
@@ -312,7 +312,7 @@ export const PageTable: React.FC<PageTableProps> = ({
               <th className="py-3 px-4 w-12 text-center">Qté</th>
               <th className="py-3 px-4 min-w-[260px]">Livrable & Spécification Inclus</th>
               {isAdmin && <th className="py-3 px-4 w-24 text-right">Délai (j)</th>}
-              {!isClient && <th className="py-3 px-4 w-28 text-right">Coût Suzali</th>}
+              {!isClient && <th className="py-3 px-4 w-28 text-right">{isAdmin ? 'Coût Suzali' : "Prix d'achat"}</th>}
               <th className="py-3 px-4 w-32 text-right">Prix Client HT</th>
               <th className="py-3 px-4 w-32 text-right">Total Ligne HT</th>
               {!isClient && <th className="py-3 px-2 w-10 text-center"></th>}

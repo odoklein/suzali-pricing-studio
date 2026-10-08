@@ -20,7 +20,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
       {/* CARD 1: Délai estimé */}
-      <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs hover:border-slate-300 transition-all">
+      <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:border-slate-300 transition-all">
         <div className="flex items-center justify-between mb-3">
           <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
             Délai Estimé
@@ -45,11 +45,11 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
 
       {/* CARD 2: Coût Suzali (ou Investissement HT en mode client) */}
       {!isClient ? (
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs hover:border-slate-300 transition-all">
+        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center space-x-1.5">
               <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Coût Suzali Base
+                {isPartner ? "Prix d'achat" : 'Coût Suzali Base'}
               </span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100/60 text-emerald-800 font-medium">
                 Interne
@@ -70,7 +70,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs hover:border-slate-300 transition-all">
+        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Sous-Total HT
@@ -94,7 +94,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
 
       {/* CARD 3: Prix Vente Client HT (ou TVA 20% en mode client) */}
       {!isClient ? (
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs hover:border-slate-300 transition-all">
+        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Prix Vente Client
@@ -114,7 +114,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs hover:border-slate-300 transition-all">
+        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               TVA (20%)
@@ -137,7 +137,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
 
       {/* CARD 4: Marge Commerciale (ou Total TTC Client) */}
       {!isClient ? (
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs hover:border-slate-300 transition-all bg-gradient-to-br from-white to-slate-50">
+        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:border-slate-300 transition-all bg-gradient-to-br from-white to-slate-50">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center space-x-1.5">
               <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -158,7 +158,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
             <span className="text-xs text-slate-500 font-medium">gain</span>
           </div>
           <div className="mt-2 text-xs text-slate-600">
-            {isPartner ? 'Votre marge commerciale brute (Roeum Mak)' : 'Marge commerciale concédée'}
+            {isPartner ? 'Votre marge commerciale brute' : 'Marge commerciale concédée'}
           </div>
         </div>
       ) : (

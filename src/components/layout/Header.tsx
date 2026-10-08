@@ -39,15 +39,15 @@ export const Header: React.FC<HeaderProps> = ({
   const isAdmin = currentRole === 'admin';
 
   return (
-    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs transition-all no-print">
+    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-sm transition-all no-print">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 md:h-18">
           
           {/* Logo & Identity (Hermetically isolated per role) */}
           <div className="flex items-center space-x-3.5">
             {isClient ? (
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-900 to-amber-950 flex items-center justify-center shadow-xs border border-amber-800/40 text-amber-200 font-bold">
-                <span className="text-sm font-mono tracking-tight">BG</span>
+              <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center shadow-sm text-white font-bold">
+                <span className="text-sm font-mono tracking-tight">RM</span>
               </div>
             ) : isPartner ? (
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-900 to-indigo-950 flex items-center justify-center shadow-xs border border-indigo-800/40 text-indigo-200 font-bold">
@@ -63,11 +63,11 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="flex items-center space-x-2">
                 {isClient ? (
                   <>
-                    <span className="font-bold text-base md:text-lg text-slate-900 tracking-tight">
-                      BIÈRES GEORGES
+                    <span className="font-semibold text-base md:text-lg text-slate-900 tracking-tight">
+                      Roeum Mak
                     </span>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-900 border border-amber-200">
-                      Portail Client Sécurisé
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-50 text-slate-600 border border-slate-100">
+                      Espace Client
                     </span>
                   </>
                 ) : isPartner ? (
@@ -97,7 +97,7 @@ export const Header: React.FC<HeaderProps> = ({
 
               <p className="text-xs text-slate-500 font-medium tracking-tight">
                 {isClient
-                  ? 'Consultation de votre devis officiel, personnalisation des livrables et validation'
+                  ? 'Conseil & Développement Web'
                   : isPartner
                   ? 'Gestion du coefficient de marge commerciale et transmission sécurisée client'
                   : 'Gouvernance des coûts de production, charge en jours et matrice tripartite'}
@@ -109,7 +109,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center space-x-2">
             
             {/* Cas Réel Bières Georges (Admin/Partner only) */}
-            {!isClient && (
+            {isAdmin && (
               <button
                 onClick={onOpenCaseStudyModal}
                 title="Audit & Rétrospective du Cas Bières Georges (592€ / 642€ vs 14.75j réels)"
@@ -154,13 +154,14 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onPrint}
               title="Télécharger ou imprimer le devis proforma officiel A4"
-              className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-900 hover:bg-emerald-800 text-white shadow-xs transition-all active:scale-95"
+              className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white shadow-sm transition-all active:scale-95"
             >
-              <Printer className="w-3.5 h-3.5 text-emerald-200" />
+              <Printer className="w-3.5 h-3.5" />
               <span>Devis A4</span>
             </button>
 
-            {/* Portal Switcher Button */}
+            {/* Portal Switcher Button (never offered to the end client) */}
+            {!isClient && (
             <button
               onClick={onOpenPortalSelector}
               title="Changer de portail / Espace de travail"
@@ -169,6 +170,7 @@ export const Header: React.FC<HeaderProps> = ({
               <ArrowLeftRight className="w-3.5 h-3.5 text-slate-500" />
               <span className="hidden md:inline">Espaces</span>
             </button>
+            )}
 
             {/* Lock/Logout button */}
             {onLock && (

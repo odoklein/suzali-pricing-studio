@@ -24,7 +24,6 @@ export const ConfigControls: React.FC<ConfigControlsProps> = ({
 }) => {
   const isClient = currentRole === 'client';
   const isAdmin = currentRole === 'admin';
-  const isPartner = currentRole === 'partner';
 
   const [isMetadataExpanded, setIsMetadataExpanded] = useState(false);
 
@@ -100,10 +99,10 @@ export const ConfigControls: React.FC<ConfigControlsProps> = ({
               </div>
             )}
 
-            {/* Marge Partenaire % */}
+            {isAdmin && (
             <div className="flex items-center space-x-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
               <span className="text-xs font-medium text-slate-600">
-                {isPartner ? 'Votre Marge Partenaire :' : 'Marge Partenaire :'}
+                Marge Partenaire :
               </span>
               <input
                 type="number"
@@ -116,6 +115,8 @@ export const ConfigControls: React.FC<ConfigControlsProps> = ({
               />
               <span className="text-xs text-slate-500 font-mono">%</span>
             </div>
+
+            )}
 
             {/* Socle Technique / Gestion (Admin only) */}
             {isAdmin && (
@@ -292,6 +293,33 @@ export const ConfigControls: React.FC<ConfigControlsProps> = ({
                     className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-900 focus:ring-1 focus:ring-indigo-700 focus:outline-none"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-slate-500 mb-1">Téléphone commercial</label>
+                <input
+                  type="text"
+                  value={metadata.partnerPhone}
+                  onChange={(e) => onUpdateMetadata({ partnerPhone: e.target.value })}
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-900 focus:ring-1 focus:ring-indigo-700 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-500 mb-1">Adresse commerciale</label>
+                <input
+                  type="text"
+                  value={metadata.partnerAddress}
+                  onChange={(e) => onUpdateMetadata({ partnerAddress: e.target.value })}
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-900 focus:ring-1 focus:ring-indigo-700 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-500 mb-1">SIRET</label>
+                <input
+                  type="text"
+                  value={metadata.partnerSiret}
+                  onChange={(e) => onUpdateMetadata({ partnerSiret: e.target.value })}
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-900 focus:ring-1 focus:ring-indigo-700 focus:outline-none"
+                />
               </div>
               <div>
                 <label className="block text-slate-500 mb-1">Acompte demandé (%)</label>

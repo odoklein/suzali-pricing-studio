@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { UserRole, PageModule, ClientMetadata, PricingSettings } from './types/quote';
 import { initialModules, initialMetadata, initialSettings } from './data/initialModules';
-import { computeQuoteCalculations } from './utils/formatters';
+import { computeQuoteCalculations, displayQuoteNumber } from './utils/formatters';
 import { saveQuoteToSupabase, fetchQuoteFromSupabase } from './lib/supabase';
 
 // Components
@@ -15,13 +15,13 @@ import { ArchitectureModal } from './components/architecture/ArchitectureModal';
 import { BieresGeorgesExplainerModal } from './components/case-study/BieresGeorgesExplainerModal';
 import { PortalSelectorModal } from './components/portal/PortalSelectorModal';
 import { PortalGate } from './components/portal/PortalGate';
+import { ClientQuoteView } from './components/client/ClientQuoteView';
+import { PartnerPricingPanel } from './components/partner/PartnerPricingPanel';
 
 import { 
   Printer,
-  ArrowRight,
   ShieldCheck,
   Handshake,
-  UserCheck,
   Database,
   Check,
   RefreshCw,
@@ -31,35 +31,22 @@ import {
 const STORAGE_KEY_MODULES = 'suzali_pricing_modules_v3';
 const STORAGE_KEY_SETTINGS = 'suzali_pricing_settings_v3';
 const STORAGE_KEY_METADATA = 'suzali_pricing_metadata_v3';
-const STORAGE_KEY_ROLE = 'suzali_pricing_role_v3';
 const STORAGE_KEY_AUTH = 'suzali_pricing_auth_v3';
 
 export const App: React.FC = () => {
-  // Authentication & PIN gate state
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const savedAuth = sessionStorage.getItem(STORAGE_KEY_AUTH);
-      if (savedAuth === 'true') return true;
+  // Authentication & PIN gate state: the session remembers WHICH portal was unlocked,
+  // so editing the URL hash can never open another portal.
+  const [authRole, setAuthRole] = useState<UserRole | null>(() => {
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY_AUTH);
+      if (saved === 'client' || saved === 'partner' || saved === 'admin') return saved;
+    } catch {
+      // ignore
     }
-    return false;
+    return null;
   });
-  // 1. Detect role from URL hash or localStorage
-  const detectInitialRole = (): UserRole => {
-    if (typeof window !== 'undefined') {
-      const hash = window.location.hash.toLowerCase();
-      if (hash.includes('client')) return 'client';
-      if (hash.includes('partner')) return 'partner';
-      if (hash.includes('admin')) return 'admin';
-      
-      const savedRole = localStorage.getItem(STORAGE_KEY_ROLE) as UserRole | null;
-      if (savedRole && ['admin', 'partner', 'client'].includes(savedRole)) {
-        return savedRole;
-      }
-    }
-    return 'admin';
-  };
-
-  const [currentRole, setCurrentRole] = useState<UserRole>(detectInitialRole);
+  const isAuthenticated = authRole !== null;
+  const [currentRole, setCurrentRole] = useState<UserRole>(authRole ?? 'client');
 
   // 2. State with localStorage persistence
   const [modules, setModules] = useState<PageModule[]>(() => {
@@ -88,7 +75,13 @@ export const App: React.FC = () => {
   const [metadata, setMetadata] = useState<ClientMetadata>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_METADATA);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = { ...initialMetadata, ...JSON.parse(saved) } as ClientMetadata;
+        // Anciennes données : aucune trace de la marque interne côté devis
+        if (/suzali/i.test(parsed.partnerEmail)) parsed.partnerEmail = initialMetadata.partnerEmail;
+        if (/Partenaire Commercial/i.test(parsed.partnerCompany)) parsed.partnerCompany = initialMetadata.partnerCompany;
+        return parsed;
+      }
     } catch {
       // ignore
     }
@@ -119,10 +112,6 @@ export const App: React.FC = () => {
     localStorage.setItem(STORAGE_KEY_METADATA, JSON.stringify(metadata));
   }, [metadata]);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_ROLE, currentRole);
-  }, [currentRole]);
-
   // Try to load initial quote data from Supabase if available
   useEffect(() => {
     async function initSupabaseData() {
@@ -135,51 +124,32 @@ export const App: React.FC = () => {
     initSupabaseData();
   }, []);
 
-  // Listen for hashchange in URL
-  useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash.toLowerCase();
-      if (hash.includes('client')) setCurrentRole('client');
-      else if (hash.includes('partner')) setCurrentRole('partner');
-      else if (hash.includes('admin')) setCurrentRole('admin');
-    };
-
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
-
   // Centralized reactive calculations
   const calculations = useMemo(() => {
     return computeQuoteCalculations(modules, settings);
   }, [modules, settings]);
 
   // Handlers
-  const handleUnlockPortal = (role: UserRole) => {
+  const grantRole = (role: UserRole) => {
     setCurrentRole(role);
-    setIsAuthenticated(true);
-    sessionStorage.setItem(STORAGE_KEY_AUTH, 'true');
-    if (role === 'client') {
-      window.location.hash = 'client-view';
-    } else if (role === 'partner') {
-      window.location.hash = 'partner-view';
-    } else {
-      window.location.hash = 'admin-view';
+    setAuthRole(role);
+    try {
+      sessionStorage.setItem(STORAGE_KEY_AUTH, role);
+    } catch {
+      // ignore
     }
+    window.location.hash = role === 'client' ? 'client-view' : role === 'partner' ? 'partner-view' : 'admin-view';
   };
+
+  const handleUnlockPortal = grantRole;
+  const handleRoleChange = grantRole;
 
   const handleLockPortal = () => {
-    setIsAuthenticated(false);
-    sessionStorage.removeItem(STORAGE_KEY_AUTH);
-  };
-
-  const handleRoleChange = (newRole: UserRole) => {
-    setCurrentRole(newRole);
-    if (newRole === 'client') {
-      window.location.hash = 'client-view';
-    } else if (newRole === 'partner') {
-      window.location.hash = 'partner-view';
-    } else {
-      window.location.hash = 'admin-view';
+    setAuthRole(null);
+    try {
+      sessionStorage.removeItem(STORAGE_KEY_AUTH);
+    } catch {
+      // ignore
     }
   };
 
@@ -282,9 +252,16 @@ export const App: React.FC = () => {
     return <PortalGate onUnlock={handleUnlockPortal} />;
   }
 
+  const isClient = currentRole === 'client';
+  const isPartner = currentRole === 'partner';
+  const isAdmin = currentRole === 'admin';
+
+  const heroCard = 'bg-white border border-slate-100 shadow-sm rounded-2xl p-6 mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4';
+  const secondaryBtn = 'px-3.5 py-2 bg-white text-slate-700 hover:text-slate-900 border border-slate-100 shadow-sm hover:bg-slate-50 font-medium text-xs rounded-xl shrink-0 flex items-center space-x-1.5 transition-all';
+
   return (
-    <div className="min-h-screen bg-white text-slate-900 selection:bg-emerald-100 selection:text-emerald-950 font-sans">
-      
+    <div className="min-h-screen bg-white text-slate-900 selection:bg-slate-200 font-sans">
+
       {/* Printable Proforma A4 component: rendered during window.print() */}
       <div className="print-only">
         <DevisOfficialA4
@@ -308,7 +285,6 @@ export const App: React.FC = () => {
         </div>
       ) : (
         <div className="no-print">
-          {/* Header */}
           <Header
             currentRole={currentRole}
             onRoleChange={handleRoleChange}
@@ -319,128 +295,76 @@ export const App: React.FC = () => {
             onReset={handleReset}
             onPrint={handlePrint}
             onLock={handleLockPortal}
-            quoteNumber={metadata.quoteNumber}
+            quoteNumber={isAdmin ? metadata.quoteNumber : displayQuoteNumber(metadata.quoteNumber)}
           />
 
-          {/* Main Container */}
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-            
-            {/* ROLE-SPECIFIC WELCOME & CONTEXT HERO BANNER */}
-            {currentRole === 'client' ? (
-              <div className="bg-gradient-to-r from-amber-950 via-amber-900 to-yellow-950 text-white p-6 rounded-2xl mb-8 border border-amber-800/80 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500 text-slate-950 font-mono">
-                      PORTAIL CLIENT PRIVÉ
-                    </span>
-                    <span className="text-xs text-amber-200">
-                      Réf: {metadata.quoteNumber} • {metadata.clientCompany}
-                    </span>
-                  </div>
-                  <h2 className="text-lg md:text-xl font-bold tracking-tight text-white">
-                    Bonjour Julien. Voici votre proposition de chiffrage par jalons.
-                  </h2>
-                  <p className="text-xs text-amber-200/90 max-w-2xl leading-relaxed">
-                    Découvrez ci-dessous le socle de base de votre site (592 € HT), le module de géolocalisation Store Locator (total 642 € HT), et les options à la carte. Aucun frais masqué, les descriptifs inclus sont verrouillés et contractuels.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowFullA4View(true)}
-                  className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs rounded-xl shadow-xs shrink-0 flex items-center space-x-2 transition-all active:scale-95"
-                >
-                  <UserCheck className="w-4 h-4 text-slate-900" />
-                  <span>Consulter & Signer le Devis</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-900" />
-                </button>
-              </div>
-            ) : currentRole === 'partner' ? (
-              <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-950 text-white p-6 rounded-2xl mb-8 border border-indigo-800/80 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500 text-white font-mono">
-                      ESPACE PARTENAIRE • ROEUM MAK
-                    </span>
-                    <span className="text-xs text-indigo-200">
-                      Dossier Client : {metadata.clientCompany}
-                    </span>
-                  </div>
-                  <h2 className="text-lg md:text-xl font-bold tracking-tight text-white">
-                    Gouvernance Tarifaire & Marge Commerciale
-                  </h2>
-                  <p className="text-xs text-indigo-200/90 max-w-2xl leading-relaxed">
-                    Suzali produit la prestation sur la base technique. Ajustez votre marge commerciale ci-dessous pour fixer votre prix de vente final à Julien, puis générez son lien d'accès sécurisé (#client-view).
-                  </p>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <button
-                    type="button"
-                    onClick={handleSyncToSupabase}
-                    disabled={isSyncingWithDb}
-                    className="px-3.5 py-2 bg-indigo-800 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs shrink-0 flex items-center space-x-1.5 transition-all"
-                  >
-                    <Database className="w-3.5 h-3.5 text-indigo-300" />
-                    <span>{isSyncingWithDb ? 'Sauvegarde...' : 'Sauvegarder BDD'}</span>
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+
+            {/* ---------- CLIENT : panier / devis interactif ---------- */}
+            {isClient && (
+              <ClientQuoteView
+                modules={modules}
+                metadata={metadata}
+                settings={settings}
+                calculations={calculations}
+                onToggleOption={(id, active) => handleUpdateQuantity(id, active ? 1 : 0)}
+                onOpenQuote={() => setShowFullA4View(true)}
+              />
+            )}
+
+            {/* ---------- PARTENAIRE : marge + lien sécurisé ---------- */}
+            {isPartner && (
+              <>
+                <PartnerPricingPanel
+                  settings={settings}
+                  calculations={calculations}
+                  metadata={metadata}
+                  onUpdateSettings={handleUpdateSettings}
+                />
+                <div className="flex justify-end mb-6 -mt-2 space-x-2">
+                  <button type="button" onClick={handleSyncToSupabase} disabled={isSyncingWithDb} className={secondaryBtn}>
+                    <Database className="w-3.5 h-3.5 text-slate-500" />
+                    <span>{isSyncingWithDb ? 'Sauvegarde...' : 'Sauvegarder'}</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsShareModalOpen(true)}
-                    className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 text-white font-bold text-xs rounded-xl shadow-xs shrink-0 flex items-center space-x-2 transition-all active:scale-95"
-                  >
-                    <Handshake className="w-4 h-4" />
-                    <span>Transmettre au Client</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                  <button type="button" onClick={() => setIsShareModalOpen(true)} className={secondaryBtn}>
+                    <Handshake className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Envoyer par e-mail</span>
                   </button>
                 </div>
-              </div>
-            ) : (
-              <div className="bg-gradient-to-r from-emerald-950 via-slate-950 to-green-950 text-white p-6 rounded-2xl mb-8 border border-emerald-800/80 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500 text-slate-950 font-mono">
+              </>
+            )}
+
+            {/* ---------- ADMIN : console technique interne ---------- */}
+            {isAdmin && (
+              <div className={heroCard}>
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-900 text-white font-mono">
                       CONSOLE TECHNIQUE SUZALI
                     </span>
-                    <span className="text-xs text-emerald-300">
-                      Équipe : Odo, Anaïs, Hichem, Chahinez
-                    </span>
-                    <span className="text-[10px] px-2 py-0.5 bg-emerald-900/80 text-emerald-300 rounded font-mono border border-emerald-700/60">
-                      PostgreSQL 17 Connecté
-                    </span>
+                    <span className="text-xs text-slate-500">Équipe : Odo, Anaïs, Hichem, Chahinez</span>
                   </div>
-                  <h2 className="text-lg md:text-xl font-bold tracking-tight text-white">
+                  <h2 className="text-lg font-semibold tracking-tight text-slate-900">
                     Matrice de Production & Verrouillage des Dérives
                   </h2>
-                  <p className="text-xs text-emerald-200/90 max-w-2xl leading-relaxed">
+                  <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
                     Cas d'école Bières Georges : base ferme à 642 € HT (5,15 j avec gestion/socle). Spécifiez précisément les livrables inclus ci-dessous pour bloquer toute contestation ultérieure.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleSyncToSupabase}
-                    disabled={isSyncingWithDb}
-                    className="px-3.5 py-2 bg-emerald-800 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs shrink-0 flex items-center space-x-1.5 transition-all"
-                  >
+                  <button type="button" onClick={handleSyncToSupabase} disabled={isSyncingWithDb} className={secondaryBtn}>
                     {isSyncingWithDb ? (
-                      <RefreshCw className="w-3.5 h-3.5 text-emerald-300 animate-spin" />
+                      <RefreshCw className="w-3.5 h-3.5 text-slate-500 animate-spin" />
                     ) : (
-                      <Database className="w-3.5 h-3.5 text-emerald-300" />
+                      <Database className="w-3.5 h-3.5 text-slate-500" />
                     )}
                     <span>{isSyncingWithDb ? 'Sauvegarde...' : 'Sauvegarder BDD'}</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsCaseStudyModalOpen(true)}
-                    className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-xs shrink-0 flex items-center space-x-1.5 transition-all"
-                  >
+                  <button type="button" onClick={() => setIsCaseStudyModalOpen(true)} className={secondaryBtn}>
                     <span>Audit Dérives (14,75 j)</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsArchitectureModalOpen(true)}
-                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl shadow-xs shrink-0 flex items-center space-x-1.5 transition-all"
-                  >
-                    <ShieldCheck className="w-4 h-4 text-emerald-300" />
+                  <button type="button" onClick={() => setIsArchitectureModalOpen(true)} className={secondaryBtn}>
+                    <ShieldCheck className="w-4 h-4 text-slate-500" />
                     <span>Schéma SQL & DNS</span>
                   </button>
                 </div>
@@ -448,121 +372,97 @@ export const App: React.FC = () => {
             )}
 
             {/* Live DB Sync notification toast banner */}
-            {dbSyncToast && (
-              <div className="mb-4 p-3 bg-slate-900 text-emerald-300 rounded-xl text-xs font-semibold flex items-center space-x-2 border border-slate-700 animate-in fade-in">
+            {dbSyncToast && !isClient && (
+              <div className="mb-4 p-3 bg-slate-900 text-white rounded-xl text-xs font-medium flex items-center space-x-2">
                 <Check className="w-4 h-4 text-emerald-400 shrink-0" />
                 <span>{dbSyncToast}</span>
               </div>
             )}
 
-            {/* 4 Metric Cards (Role-tailored) */}
-            <MetricCards
-              currentRole={currentRole}
-              calculations={calculations}
-              settings={settings}
-            />
+            {!isClient && (
+              <>
+                <MetricCards
+                  currentRole={currentRole}
+                  calculations={calculations}
+                  settings={settings}
+                />
 
-            {/* Config & Meta Controls (Adapted: Client never sees internal margins) */}
-            <ConfigControls
-              currentRole={currentRole}
-              settings={settings}
-              metadata={metadata}
-              onUpdateSettings={handleUpdateSettings}
-              onUpdateMetadata={handleUpdateMetadata}
-            />
+                <ConfigControls
+                  currentRole={currentRole}
+                  settings={settings}
+                  metadata={metadata}
+                  onUpdateSettings={handleUpdateSettings}
+                  onUpdateMetadata={handleUpdateMetadata}
+                />
 
-            {/* Main Interactive Modules Table (Phased into 3 steps) */}
-            <PageTable
-              modules={modules}
-              currentRole={currentRole}
-              settings={settings}
-              onUpdateQuantity={handleUpdateQuantity}
-              onUpdateIncluded={handleUpdateIncluded}
-              onUpdateBasePrice={handleUpdateBasePrice}
-              onUpdateDays={handleUpdateDays}
-              onAddCustomModule={handleAddCustomModule}
-              onDeleteModule={handleDeleteModule}
-            />
+                <PageTable
+                  modules={modules}
+                  currentRole={currentRole}
+                  settings={settings}
+                  onUpdateQuantity={handleUpdateQuantity}
+                  onUpdateIncluded={handleUpdateIncluded}
+                  onUpdateBasePrice={handleUpdateBasePrice}
+                  onUpdateDays={handleUpdateDays}
+                  onAddCustomModule={handleAddCustomModule}
+                  onDeleteModule={handleDeleteModule}
+                />
 
-            {/* Quick Actions Footer Card */}
-            <div className="bg-slate-50 rounded-2xl border border-slate-200 p-6 flex flex-col md:flex-row items-center justify-between gap-4">
-              <div className="space-y-1 text-center md:text-left">
-                <h4 className="font-bold text-slate-900 text-sm">
-                  {currentRole === 'client' 
-                    ? 'Prêt à lancer la réalisation de votre site ?' 
-                    : 'Prêt pour la validation contractuelle tripartite ?'}
-                </h4>
-                <p className="text-xs text-slate-500">
-                  {currentRole === 'client'
-                    ? 'Téléchargez votre devis officiel A4 avec échéancier 30/40/30 et apposez votre signature.'
-                    : 'Générez le devis proforma officiel conforme avec descriptifs inclus verrouillés et signature.'}
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowFullA4View(true)}
-                  className="px-4 py-2 bg-white text-slate-700 hover:text-slate-900 border border-slate-300 rounded-xl text-xs font-semibold hover:bg-slate-100 transition-colors"
-                >
-                  Aperçu Document A4
-                </button>
-                <button
-                  type="button"
-                  onClick={handlePrint}
-                  className="px-5 py-2 bg-emerald-950 text-white rounded-xl text-xs font-bold hover:bg-emerald-900 shadow-xs flex items-center space-x-2 transition-all active:scale-95"
-                >
-                  <Printer className="w-3.5 h-3.5 text-emerald-300" />
-                  <span>Télécharger / Imprimer en PDF</span>
-                </button>
-              </div>
-            </div>
-
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="space-y-1 text-center md:text-left">
+                    <h4 className="font-semibold text-slate-900 text-sm">
+                      Prêt pour la validation contractuelle ?
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                      Générez le devis officiel avec descriptifs inclus verrouillés et signature.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button type="button" onClick={() => setShowFullA4View(true)} className={secondaryBtn}>
+                      Aperçu Document A4
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handlePrint}
+                      className="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-medium hover:bg-slate-800 flex items-center space-x-2 transition-all active:scale-95"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Télécharger / Imprimer en PDF</span>
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </main>
 
-          {/* Minimalist Professional Footer */}
           <footer className="border-t border-slate-100 py-6 mt-12 bg-white text-xs text-slate-500">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-5 h-5 rounded bg-emerald-950 text-emerald-300 text-[10px] font-bold flex items-center justify-center">
-                  SZ
-                </div>
-                <span className="font-medium text-slate-700">
-                  Suzali Conseil Pricing Studio
-                </span>
-                <span className="text-slate-300">|</span>
-                <span>Odo • Anaïs • Hichem • Chahinez</span>
-              </div>
+              <span className="font-medium text-slate-700">
+                {isAdmin ? 'Suzali Conseil Pricing Studio' : 'Roeum Mak - Conseil & Développement Web'}
+              </span>
               <div className="flex items-center space-x-4 text-[11px]">
-                <button
-                  onClick={() => setIsArchitectureModalOpen(true)}
-                  className="hover:text-slate-900 transition-colors"
-                >
-                  Schéma SQL & Netlify
-                </button>
-                <button
-                  onClick={() => setIsCaseStudyModalOpen(true)}
-                  className="hover:text-slate-900 transition-colors font-semibold text-amber-800"
-                >
-                  Cas Bières Georges (642 €)
-                </button>
-                <button
-                  onClick={() => setIsPortalSelectorOpen(true)}
-                  className="hover:text-slate-900 transition-colors text-indigo-700 font-medium"
-                >
-                  Changer de portail
-                </button>
+                {isAdmin && (
+                  <>
+                    <button onClick={() => setIsArchitectureModalOpen(true)} className="hover:text-slate-900 transition-colors">
+                      Schéma SQL & Netlify
+                    </button>
+                    <button onClick={() => setIsCaseStudyModalOpen(true)} className="hover:text-slate-900 transition-colors">
+                      Cas Bières Georges (642 €)
+                    </button>
+                  </>
+                )}
+                {!isClient && (
+                  <button onClick={() => setIsPortalSelectorOpen(true)} className="hover:text-slate-900 transition-colors">
+                    Changer de portail
+                  </button>
+                )}
                 <button
                   onClick={handleLockPortal}
-                  className="hover:text-rose-700 transition-colors text-slate-500 flex items-center space-x-1"
+                  className="hover:text-rose-700 transition-colors flex items-center space-x-1"
                   title="Verrouiller la session et revenir à l'écran de code"
                 >
                   <LogOut className="w-3 h-3 text-slate-400" />
                   <span>Verrouiller</span>
                 </button>
-                <span className="text-slate-400">
-                  Base Supabase connectée (eu-west-2)
-                </span>
               </div>
             </div>
           </footer>
@@ -570,26 +470,27 @@ export const App: React.FC = () => {
       )}
 
       {/* MODALS */}
-      {isShareModalOpen && (
+      {isShareModalOpen && !isClient && (
         <ShareModal
           metadata={metadata}
           calculations={calculations}
+          currentRole={currentRole}
           onClose={() => setIsShareModalOpen(false)}
         />
       )}
 
-      {isArchitectureModalOpen && (
+      {isArchitectureModalOpen && isAdmin && (
         <ArchitectureModal onClose={() => setIsArchitectureModalOpen(false)} />
       )}
 
-      {isCaseStudyModalOpen && (
+      {isCaseStudyModalOpen && isAdmin && (
         <BieresGeorgesExplainerModal
           onClose={() => setIsCaseStudyModalOpen(false)}
           onApplyBase642={handleApplyBase642}
         />
       )}
 
-      {isPortalSelectorOpen && (
+      {isPortalSelectorOpen && !isClient && (
         <PortalSelectorModal
           currentRole={currentRole}
           onSelectRole={handleRoleChange}

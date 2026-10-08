@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import type { PageModule, ClientMetadata, PricingSettings, QuoteCalculations } from '../../types/quote';
-import { formatEuros, formatFrenchDate, addDays } from '../../utils/formatters';
+import { formatEuros, formatFrenchDate, addDays, getClientUnitPrice, displayQuoteNumber, CORE_MODULE_IDS, LOCATOR_MODULE_ID } from '../../utils/formatters';
 import { saveSignatureToSupabase } from '../../lib/supabase';
 import { 
   FileText, 
@@ -32,11 +32,22 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
   const [hasSigned, setHasSigned] = useState(false);
   const [signerName, setSignerName] = useState(metadata.clientContact);
   const [signedDate, setSignedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [signedAt, setSignedAt] = useState<Date | null>(null);
   const [isSavingSignature, setIsSavingSignature] = useState(false);
   const [signatureSavedInDb, setSignatureSavedInDb] = useState(false);
 
   // Filter active modules
   const activeModules = modules.filter((m) => m.quantity > 0);
+
+  // Périmètre contractuel verrouillé : 8 pages + Store Locator
+  const lockedModules = activeModules.filter(
+    (m) => CORE_MODULE_IDS.includes(m.id) || m.id === LOCATOR_MODULE_ID
+  );
+  const lockedPageCount = lockedModules.filter((m) => CORE_MODULE_IDS.includes(m.id)).length;
+  const lockedScopeTotal = lockedModules.reduce(
+    (sum, m) => sum + getClientUnitPrice(m, settings) * m.quantity,
+    0
+  );
 
   // Expiry date calculation
   const expirationDate = addDays(metadata.issueDate, metadata.validityDays);
@@ -59,6 +70,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
     if (!ctx) return;
 
     setIsDrawing(true);
+    if (!hasSigned) setSignedAt(new Date());
     setHasSigned(true);
     const rect = canvas.getBoundingClientRect();
     const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
@@ -92,6 +104,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     setHasSigned(false);
+    setSignedAt(null);
     setSignatureSavedInDb(false);
   };
 
@@ -117,7 +130,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
       {/* Top action toolbar (Hidden when printing) */}
       <div className="max-w-4xl mx-auto mb-6 flex items-center justify-between no-print bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
         <div className="flex items-center space-x-2">
-          <FileText className="w-5 h-5 text-emerald-800" />
+          <FileText className="w-5 h-5 text-slate-800" />
           <h2 className="font-bold text-slate-900 text-sm md:text-base">
             Prévisualisation du Devis Proforma Officiel A4
           </h2>
@@ -133,7 +146,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
           )}
           <button
             onClick={handlePrint}
-            className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-900 text-white hover:bg-emerald-800 shadow-xs transition-all"
+            className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 text-white hover:bg-slate-800 shadow-xs transition-all"
           >
             <Printer className="w-4 h-4 text-emerald-300" />
             <span>Imprimer / Télécharger en PDF</span>
@@ -145,36 +158,28 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
       <div className="max-w-4xl mx-auto bg-white border border-slate-200/90 shadow-sm p-8 sm:p-12 text-slate-900 text-xs font-sans print:shadow-none print:border-none print:p-0">
         
         {/* Header: Company & Client Identity */}
-        <div className="flex flex-col sm:flex-row justify-between items-start gap-8 pb-8 border-b-2 border-emerald-950">
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-8 pb-8 border-b-2 border-slate-900">
           
-          {/* Émetteur: Suzali Conseil & Partenaire */}
+          {/* Émetteur : Roeum Mak (seul interlocuteur visible du client) */}
           <div className="space-y-1.5 max-w-sm">
             <div className="flex items-center space-x-2 mb-2">
-              <div className="w-8 h-8 rounded-lg bg-emerald-950 flex items-center justify-center text-emerald-400 font-bold text-sm">
-                SZ
+              <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white font-bold text-sm">
+                RM
               </div>
-              <span className="text-base font-extrabold tracking-tight text-emerald-950">
-                SUZALI CONSEIL
+              <span className="text-base font-extrabold tracking-tight text-slate-900">
+                ROEUM MAK
               </span>
             </div>
             <p className="font-semibold text-slate-800">
-              Agence de Développement Web & Conseil Stratégique
+              Conseil & Développement Web
             </p>
             <p className="text-slate-600 text-[11px] leading-tight">
-              12 Rue de la République • 69002 Lyon, France<br />
-              SIRET : 912 345 678 00019 • RCS Lyon B 912 345 678<br />
-              TVA Intracommunautaire : FR 48 912345678<br />
-              Email : contact@suzali-conseil.com • Web : suzali-conseil.com
+              {metadata.partnerContact}<br />
+              {metadata.partnerAddress && <>{metadata.partnerAddress}<br /></>}
+              {metadata.partnerSiret && <>SIRET : {metadata.partnerSiret}<br /></>}
+              {metadata.partnerPhone && <>Tél : {metadata.partnerPhone}<br /></>}
+              Email : {metadata.partnerEmail}
             </p>
-
-            {/* Agence Partenaire Co-traitante */}
-            {metadata.partnerCompany && (
-              <div className="mt-3 pt-2 border-t border-slate-100 text-[11px]">
-                <span className="font-bold text-indigo-950">Agence Partenaire Référente : </span>
-                <span className="text-slate-700">{metadata.partnerCompany}</span>
-                <span className="text-slate-500"> ({metadata.partnerContact} • {metadata.partnerEmail})</span>
-              </div>
-            )}
           </div>
 
           {/* Destinataire: Client Final */}
@@ -201,7 +206,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-5 border-b border-slate-100 bg-slate-50/50 my-4 px-4 rounded-xl">
           <div>
             <span className="block text-[10px] uppercase font-semibold text-slate-400">N° Devis Proforma</span>
-            <span className="font-mono font-bold text-slate-900 text-sm">{metadata.quoteNumber}</span>
+            <span className="font-mono font-bold text-slate-900 text-sm">{displayQuoteNumber(metadata.quoteNumber)}</span>
           </div>
           <div>
             <span className="block text-[10px] uppercase font-semibold text-slate-400">Date d'Émission</span>
@@ -213,7 +218,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
           </div>
           <div>
             <span className="block text-[10px] uppercase font-semibold text-slate-400">Délai Estimé de Réalisation</span>
-            <span className="font-mono font-bold text-emerald-900">{calculations.totalDays} jours ouvrés</span>
+            <span className="font-mono font-bold text-slate-800">{calculations.totalDays} jours ouvrés</span>
           </div>
         </div>
 
@@ -240,9 +245,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
             </thead>
             <tbody className="divide-y divide-slate-100">
               {activeModules.map((mod, index) => {
-                const unitPrice = settings.mode === 'forfait'
-                  ? mod.basePrice * (1 + settings.partnerMarginPercent / 100)
-                  : (mod.days * settings.tjmSuzali) * (1 + settings.partnerMarginPercent / 100);
+                const unitPrice = getClientUnitPrice(mod, settings);
                 const lineTotal = unitPrice * mod.quantity;
 
                 return (
@@ -257,8 +260,8 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
                       <div className="text-slate-600 text-[11px] mb-1">
                         {mod.description}
                       </div>
-                      <div className="text-[11px] bg-emerald-50/70 text-emerald-950 p-1.5 rounded border border-emerald-100 font-sans">
-                        <strong className="text-emerald-900 font-semibold">Inclus au devis : </strong>
+                      <div className="text-[11px] bg-slate-50 text-slate-900 p-1.5 rounded border border-slate-100 font-sans">
+                        <strong className="text-slate-800 font-semibold">Inclus au devis : </strong>
                         {mod.includedDetails}
                       </div>
                     </td>
@@ -338,7 +341,10 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
             2. <strong>Hébergement & Propriété Intellectuelle</strong> : Le code source est la propriété pleine et entière du client final après règlement intégral de l'ensemble des factures émises.
           </p>
           <p>
-            3. <strong>Pénalités de retard</strong> : Conformément aux articles L. 441-10 et D. 441-5 du Code de commerce, tout retard de règlement donne lieu de plein droit à des pénalités au taux légal en vigueur majoré de 10 points, ainsi qu’à une indemnité forfaitaire pour frais de recouvrement de 40 €.
+            3. <strong>Livrables verrouillés</strong> : le périmètre ferme du présent devis est limité à {lockedPageCount} pages + 1 module Store Locator, soit {formatEuros(lockedScopeTotal)} HT, dans les termes exacts des descriptifs « Inclus au devis » ci-dessus. Tout élément non listé est hors périmètre et fera l'objet d'un avenant signé avant réalisation.
+          </p>
+          <p>
+            4. <strong>Pénalités de retard</strong> : Conformément aux articles L. 441-10 et D. 441-5 du Code de commerce, tout retard de règlement donne lieu de plein droit à des pénalités au taux légal en vigueur majoré de 10 points, ainsi qu’à une indemnité forfaitaire pour frais de recouvrement de 40 €.
           </p>
         </div>
 
@@ -346,7 +352,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
         <div className="border-2 border-slate-300 rounded-xl p-5 bg-white page-break-inside-avoid">
           <div className="flex justify-between items-center mb-3">
             <span className="font-bold text-xs uppercase tracking-wider text-slate-800 flex items-center space-x-1.5">
-              <CheckSquare className="w-4 h-4 text-emerald-800" />
+              <CheckSquare className="w-4 h-4 text-slate-800" />
               <span>Bon pour Accord & Ordre d'Exécution</span>
             </span>
             <span className="text-[11px] text-slate-500">
@@ -422,7 +428,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
                     type="button"
                     onClick={handleSaveSignature}
                     disabled={isSavingSignature}
-                    className="py-1.5 px-3 bg-emerald-800 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs flex items-center space-x-1.5 transition-all shadow-xs"
+                    className="py-1.5 px-3 bg-slate-800 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs flex items-center space-x-1.5 transition-all shadow-xs"
                   >
                     <Send className="w-3 h-3" />
                     <span>{isSavingSignature ? 'Enregistrement...' : 'Valider & Transmettre la Signature'}</span>
@@ -430,9 +436,9 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
                 )}
 
                 {signatureSavedInDb && (
-                  <div className="flex items-center space-x-1 text-xs text-emerald-800 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                  <div className="flex items-center space-x-1 text-xs text-slate-800 font-bold bg-slate-50 px-2.5 py-1 rounded-lg border border-emerald-200">
                     <CloudCheck className="w-4 h-4 text-emerald-600" />
-                    <span>Signé & Enregistré sur Supabase BDD !</span>
+                    <span>Signature enregistrée</span>
                   </div>
                 )}
               </div>
@@ -440,7 +446,12 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
               {hasSigned && (
                 <div className="mt-1 flex items-center space-x-1 text-[10px] text-emerald-700 font-medium">
                   <CheckCircle className="w-3 h-3 text-emerald-600" />
-                  <span>Signature capturée avec horodatage électronique</span>
+                  <span>
+                    Signé électroniquement le {signedAt ? formatFrenchDate(signedAt) : ''} à{' '}
+                    <span className="font-mono">
+                      {signedAt ? signedAt.toLocaleTimeString('fr-FR') : ''}
+                    </span>
+                  </span>
                 </div>
               )}
             </div>

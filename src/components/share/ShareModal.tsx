@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import type { ClientMetadata, QuoteCalculations } from '../../types/quote';
-import { formatEuros } from '../../utils/formatters';
+import type { ClientMetadata, QuoteCalculations, UserRole } from '../../types/quote';
+import { formatEuros, displayQuoteNumber } from '../../utils/formatters';
 import { 
   X, 
   Copy, 
@@ -14,14 +14,17 @@ import {
 interface ShareModalProps {
   metadata: ClientMetadata;
   calculations: QuoteCalculations;
+  currentRole: UserRole;
   onClose: () => void;
 }
 
 export const ShareModal: React.FC<ShareModalProps> = ({
   metadata,
   calculations,
+  currentRole,
   onClose,
 }) => {
+  const isAdmin = currentRole === 'admin';
   const [token] = useState(() => 'sz-' + Math.random().toString(36).substring(2, 9));
   const [selectedRoleLink, setSelectedRoleLink] = useState<'client' | 'partner'>('client');
   const [copied, setCopied] = useState(false);
@@ -30,7 +33,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   // Compute shareable URL
   const baseUrl = window.location.origin + window.location.pathname;
   const hashTarget = selectedRoleLink === 'client' ? '#client-view' : '#partner-view';
-  const shareableUrl = `${baseUrl}${hashTarget}?token=${token}&quote=${encodeURIComponent(metadata.quoteNumber)}`;
+  const shareableUrl = `${baseUrl}${hashTarget}?token=${token}&quote=${encodeURIComponent(isAdmin ? metadata.quoteNumber : displayQuoteNumber(metadata.quoteNumber))}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(shareableUrl);
@@ -80,7 +83,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
             <label className="block text-slate-600 font-semibold mb-2">
               1. Sélectionnez le type d’accès à partager :
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => setSelectedRoleLink('client')}
@@ -101,6 +104,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                 </p>
               </button>
 
+              {isAdmin && (
               <button
                 type="button"
                 onClick={() => setSelectedRoleLink('partner')}
@@ -120,6 +124,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                   Prix d'achat Suzali + réglage de la marge commerciale.
                 </p>
               </button>
+              )}
             </div>
           </div>
 
@@ -182,7 +187,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-800 font-medium">Cc</span>
               </div>
               <div className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-lg border border-slate-200">
-                <span>Prestataire : <strong>Suzali Conseil</strong> (contact@suzali-conseil.com)</span>
+                <span>{isAdmin ? <>Prestataire : <strong>Suzali Conseil</strong> (contact@suzali-conseil.com)</> : <>Archivage interne</>}</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">Archivage</span>
               </div>
             </div>

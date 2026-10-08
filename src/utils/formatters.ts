@@ -1,5 +1,22 @@
 import type { PageModule, PricingSettings, QuoteCalculations } from '../types/quote';
 
+export const CORE_MODULE_IDS = [
+  'page-home', 'page-story', 'page-menu', 'page-events',
+  'page-privatisation', 'page-gallery', 'page-practical', 'page-legal',
+];
+export const LOCATOR_MODULE_ID = 'module-store-locator';
+
+/** Prix unitaire HT facturé au client (coût de production + marge commerciale) */
+export function getClientUnitPrice(mod: PageModule, settings: PricingSettings): number {
+  const base = settings.mode === 'forfait' ? mod.basePrice : mod.days * settings.tjmSuzali;
+  return base * (1 + settings.partnerMarginPercent / 100);
+}
+
+/** Le n° de devis interne (SZ-…) est présenté côté client sous la marque Roeum Mak (RM-…) */
+export function displayQuoteNumber(quoteNumber: string): string {
+  return quoteNumber.replace(/^SZ-/i, 'RM-');
+}
+
 export function formatEuros(amount: number, showDecimals: boolean = true): string {
   if (isNaN(amount)) return '0,00 €';
   return new Intl.NumberFormat('fr-FR', {

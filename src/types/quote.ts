@@ -25,6 +25,9 @@ export interface ClientMetadata {
   partnerCompany: string;
   partnerContact: string;
   partnerEmail: string;
+  partnerPhone: string;
+  partnerAddress: string;
+  partnerSiret: string;
   quoteNumber: string;
   issueDate: string;
   validityDays: number;

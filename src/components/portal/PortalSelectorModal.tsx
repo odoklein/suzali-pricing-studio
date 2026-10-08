@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { UserRole } from '../../types/quote';
+import { PORTAL_CODES } from '../../data/portalCodes';
 import { 
   X, 
   ShieldCheck, 
@@ -22,7 +23,6 @@ interface PortalConfig {
   title: string;
   subtitle: string;
   desc: string;
-  codeHint: string;
   allowedCodes: string[];
   icon: React.ComponentType<{ className?: string }>;
   accentColor: string;
@@ -32,11 +32,10 @@ interface PortalConfig {
 const PORTALS: PortalConfig[] = [
   {
     role: 'client',
-    title: '3. Brasserie Bières Georges — Portail Client Final',
-    subtitle: 'Client : Julien & Équipe Direction',
+    title: '3. Espace Client — Présenté par Roeum Mak',
+    subtitle: 'Bières Georges',
     desc: 'Consultation transparente du devis (642 € HT), options à la carte et signature électronique officielle sans fuite de coûts ou marges.',
-    codeHint: '1234',
-    allowedCodes: ['1234', 'BIERES', 'GEORGES', 'JULIEN', '0000'],
+    allowedCodes: PORTAL_CODES.client,
     icon: User,
     accentColor: 'from-amber-950 to-amber-900',
     borderActive: 'border-amber-600 bg-amber-50/50',
@@ -45,20 +44,18 @@ const PORTALS: PortalConfig[] = [
     role: 'partner',
     title: '2. Espace Partenaire Commercial — Roeum Mak',
     subtitle: 'Vente & Apport d\'Affaires : Roeum Mak',
-    desc: 'Visualisation du coût Suzali, réglage de votre marge commerciale (+35%) et génération du lien client sécurisé.',
-    codeHint: '5678',
-    allowedCodes: ['5678', 'ROEUM', 'MAK', 'PARTENAIRE', '2026'],
+    desc: 'Visualisation du prix d’achat, réglage de votre marge commerciale (+35%) et génération du lien client sécurisé.',
+    allowedCodes: PORTAL_CODES.partner,
     icon: Handshake,
     accentColor: 'from-indigo-950 to-indigo-900',
     borderActive: 'border-indigo-600 bg-indigo-50/50',
   },
   {
     role: 'admin',
-    title: '1. Suzali Conseil — Régie Technique & Direction',
-    subtitle: 'Équipe : Odo, Anaïs, Hichem, Chahinez',
+    title: '1. Accès interne — Régie technique',
+    subtitle: 'Équipe technique',
     desc: 'Contrôle total des coûts de fabrication, charge en jours (3,65 j + 1,5 j = 5,15 j), TJM, PostgreSQL et audits des dérives.',
-    codeHint: '9999',
-    allowedCodes: ['9999', 'SUZALI', 'ODO', 'ADMIN', '642'],
+    allowedCodes: PORTAL_CODES.admin,
     icon: ShieldCheck,
     accentColor: 'from-emerald-950 to-emerald-900',
     borderActive: 'border-emerald-700 bg-emerald-50/50',
@@ -91,7 +88,7 @@ export const PortalSelectorModal: React.FC<PortalSelectorModalProps> = ({
       onSelectRole(selectedRole);
       onClose();
     } else {
-      setError(`Code incorrect pour ${activeTarget.title.split('—')[0]}. (Code démo : ${activeTarget.codeHint})`);
+      setError('Code incorrect.');
     }
   };
 
@@ -180,16 +177,14 @@ export const PortalSelectorModal: React.FC<PortalSelectorModalProps> = ({
                   <Lock className="w-3.5 h-3.5 text-slate-600" />
                   <span>Saisissez le code PIN pour basculer :</span>
                 </label>
-                <span className="text-[11px] text-slate-500">
-                  Code test : <strong className="font-mono text-slate-700">{activeTarget.codeHint}</strong>
-                </span>
+
               </div>
               
               <div className="flex items-center space-x-2">
                 <input
                   type="password"
                   autoFocus
-                  placeholder={`Code PIN (ex: ${activeTarget.codeHint})`}
+                  placeholder="Code PIN"
                   value={pinCode}
                   onChange={(e) => {
                     setPinCode(e.target.value);
@@ -197,13 +192,6 @@ export const PortalSelectorModal: React.FC<PortalSelectorModalProps> = ({
                   }}
                   className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
                 />
-                <button
-                  type="button"
-                  onClick={() => setPinCode(activeTarget.codeHint)}
-                  className="px-2.5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-medium"
-                >
-                  Code démo
-                </button>
                 <button
                   type="submit"
                   className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 shadow-xs"
