@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import type { PageModule, ClientMetadata, PricingSettings, QuoteCalculations } from '../../types/quote';
 import { formatEuros, formatFrenchDate, addDays, getClientUnitPrice, displayQuoteNumber, CORE_MODULE_IDS, LOCATOR_MODULE_ID } from '../../utils/formatters';
-import { saveSignatureToSupabase } from '../../lib/supabase';
+import { getInitials } from '../layout/Header';
 import { 
   FileText, 
   Printer, 
@@ -18,6 +18,10 @@ interface DevisOfficialA4Props {
   settings: PricingSettings;
   calculations: QuoteCalculations;
   onClose?: () => void;
+  /** Fourni uniquement dans l'espace client : enregistre la signature côté serveur */
+  onSign?: (name: string, signatureDataUri: string) => Promise<{ success: boolean; error?: string; signedAt?: string }>;
+  /** Devis déjà signé : la signature enregistrée remplace la zone de saisie */
+  signed?: { by: string; at: string; signature: string | null } | null;
 }
 
 export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
@@ -26,15 +30,18 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
   settings,
   calculations,
   onClose,
+  onSign,
+  signed,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasSigned, setHasSigned] = useState(false);
-  const [signerName, setSignerName] = useState(metadata.clientContact);
-  const [signedDate, setSignedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [signerName, setSignerName] = useState(signed?.by ?? metadata.clientContact);
+  const [signedDate, setSignedDate] = useState(() => (signed?.at ?? new Date().toISOString()).split('T')[0]);
   const [signedAt, setSignedAt] = useState<Date | null>(null);
   const [isSavingSignature, setIsSavingSignature] = useState(false);
   const [signatureSavedInDb, setSignatureSavedInDb] = useState(false);
+  const [signError, setSignError] = useState<string | null>(null);
 
   // Filter active modules
   const activeModules = modules.filter((m) => m.quantity > 0);
@@ -110,13 +117,20 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
 
   const handleSaveSignature = async () => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const signatureDataUri = canvas.toDataURL('image/png');
+    if (!canvas || !onSign) return;
+    if (!signerName.trim()) {
+      setSignError('Indiquez le nom du signataire.');
+      return;
+    }
     setIsSavingSignature(true);
-    const res = await saveSignatureToSupabase(metadata.quoteNumber, signerName, signatureDataUri);
+    setSignError(null);
+    const res = await onSign(signerName.trim(), canvas.toDataURL('image/png'));
     setIsSavingSignature(false);
     if (res.success) {
       setSignatureSavedInDb(true);
+      if (res.signedAt) setSignedAt(new Date(res.signedAt));
+    } else {
+      setSignError(res.error ?? "La signature n'a pas pu être enregistrée.");
     }
   };
 
@@ -164,14 +178,14 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
           <div className="space-y-1.5 max-w-sm">
             <div className="flex items-center space-x-2 mb-2">
               <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white font-bold text-sm">
-                RM
+                {getInitials(metadata.partnerCompany)}
               </div>
               <span className="text-base font-extrabold tracking-tight text-slate-900">
-                ROEUM MAK
+                {metadata.partnerCompany.toUpperCase()}
               </span>
             </div>
             <p className="font-semibold text-slate-800">
-              Conseil & Développement Web
+              {metadata.partnerTagline}
             </p>
             <p className="text-slate-600 text-[11px] leading-tight">
               {metadata.partnerContact}<br />
@@ -367,15 +381,17 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
                 <input
                   type="text"
                   value={signerName}
+                  disabled={!!signed}
                   onChange={(e) => setSignerName(e.target.value)}
                   className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-900 font-semibold"
                 />
               </div>
               <div>
-                <label className="block text-slate-500 text-[11px] mb-1">Fait à Lyon, le :</label>
+                <label className="block text-slate-500 text-[11px] mb-1">Fait le :</label>
                 <input
                   type="date"
                   value={signedDate}
+                  disabled={!!signed}
                   onChange={(e) => setSignedDate(e.target.value)}
                   className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-900 font-mono"
                 />
@@ -385,7 +401,24 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
               </div>
             </div>
 
-            {/* Signature Canvas */}
+            {signed ? (
+              <div>
+                <span className="block text-slate-500 text-[11px] mb-1">Signature enregistrée :</span>
+                <div className="border border-slate-300 rounded-lg bg-slate-50/50 h-[110px] flex items-center justify-center overflow-hidden">
+                  {signed.signature && (
+                    <img src={signed.signature} alt="Signature du client" className="max-h-full" />
+                  )}
+                </div>
+                <div className="mt-1 flex items-center space-x-1 text-[10px] text-emerald-700 font-medium">
+                  <CheckCircle className="w-3 h-3 text-emerald-600" />
+                  <span>
+                    Signé par {signed.by} le {formatFrenchDate(new Date(signed.at))} à{' '}
+                    <span className="font-mono">{new Date(signed.at).toLocaleTimeString('fr-FR')}</span>
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <>
             <div>
               <div className="flex items-center justify-between mb-1 text-[11px]">
                 <span className="text-slate-500">Signature tactile ou à la souris :</span>
@@ -423,7 +456,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
               
               {/* Signature Action Buttons */}
               <div className="mt-2 flex items-center justify-between gap-2 no-print">
-                {hasSigned && !signatureSavedInDb && (
+                {onSign && hasSigned && !signatureSavedInDb && (
                   <button
                     type="button"
                     onClick={handleSaveSignature}
@@ -455,6 +488,14 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
                 </div>
               )}
             </div>
+              {signError && <p className="mt-1 text-[11px] text-rose-600 no-print">{signError}</p>}
+              {!onSign && (
+                <p className="mt-2 text-[11px] text-slate-400 italic no-print">
+                  Aperçu : la signature est réservée au client depuis son lien sécurisé.
+                </p>
+              )}
+              </>
+            )}
           </div>
         </div>
 

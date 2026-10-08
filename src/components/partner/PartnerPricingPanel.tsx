@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { PricingSettings, QuoteCalculations, ClientMetadata } from '../../types/quote';
-import { formatEuros, displayQuoteNumber } from '../../utils/formatters';
+import { formatEuros } from '../../utils/formatters';
 import { Copy, Check } from 'lucide-react';
 
 interface PartnerPricingPanelProps {
@@ -8,6 +8,8 @@ interface PartnerPricingPanelProps {
   calculations: QuoteCalculations;
   metadata: ClientMetadata;
   onUpdateSettings: (newSettings: Partial<PricingSettings>) => void;
+  /** Marque le devis comme transmis puis retourne le lien client */
+  onShare: () => Promise<string | null>;
 }
 
 export const PartnerPricingPanel: React.FC<PartnerPricingPanelProps> = ({
@@ -15,10 +17,10 @@ export const PartnerPricingPanel: React.FC<PartnerPricingPanelProps> = ({
   calculations,
   metadata,
   onUpdateSettings,
+  onShare,
 }) => {
   const [unit, setUnit] = useState<'percent' | 'euro'>('percent');
   const [copied, setCopied] = useState(false);
-  const [token] = useState(() => 'rm-' + Math.random().toString(36).substring(2, 9));
 
   const base = calculations.baseSuzaliCostHT;
   const netInPocket = calculations.finalSellingPriceHT - base;
@@ -34,8 +36,8 @@ export const PartnerPricingPanel: React.FC<PartnerPricingPanelProps> = ({
   };
 
   const handleCopy = async () => {
-    const baseUrl = window.location.origin + window.location.pathname;
-    const url = `${baseUrl}#client-view?token=${token}&quote=${encodeURIComponent(displayQuoteNumber(metadata.quoteNumber))}`;
+    const url = await onShare();
+    if (!url) return;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);

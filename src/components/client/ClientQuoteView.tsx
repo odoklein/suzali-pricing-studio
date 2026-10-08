@@ -6,7 +6,7 @@ import {
   getClientUnitPrice,
   CORE_MODULE_IDS,
   LOCATOR_MODULE_ID,
-  displayQuoteNumber,
+  formatFrenchDate,
 } from '../../utils/formatters';
 import { Check, ArrowRight, Lock } from 'lucide-react';
 
@@ -17,6 +17,10 @@ interface ClientQuoteViewProps {
   calculations: QuoteCalculations;
   onToggleOption: (id: string, active: boolean) => void;
   onOpenQuote: () => void;
+  issuerName: string;
+  reference: string;
+  /** Devis signé : options figées */
+  signedAt?: string | null;
 }
 
 export const ClientQuoteView: React.FC<ClientQuoteViewProps> = ({
@@ -26,18 +30,26 @@ export const ClientQuoteView: React.FC<ClientQuoteViewProps> = ({
   calculations,
   onToggleOption,
   onOpenQuote,
+  issuerName,
+  reference,
+  signedAt,
 }) => {
-  const coreModules = modules.filter((m) => CORE_MODULE_IDS.includes(m.id));
-  const locator = modules.find((m) => m.id === LOCATOR_MODULE_ID);
-  const options = modules.filter(
-    (m) => !CORE_MODULE_IDS.includes(m.id) && m.id !== LOCATOR_MODULE_ID
-  );
+  const locked = !!signedAt;
+  const fixedModules = modules.filter((m) => !m.optional && m.quantity > 0);
+  const options = modules.filter((m) => m.optional);
 
-  const scopeModules = [...coreModules, ...(locator ? [locator] : [])];
-  const scopeTotal = scopeModules.reduce(
+  const coreCount = fixedModules.filter((m) => CORE_MODULE_IDS.includes(m.id)).length;
+  const hasLocator = fixedModules.some((m) => m.id === LOCATOR_MODULE_ID);
+  const scopeTitle =
+    coreCount > 0
+      ? `${coreCount} pages${hasLocator ? ' + Store Locator' : ''}`
+      : `${fixedModules.length} prestation${fixedModules.length > 1 ? 's' : ''}`;
+
+  const scopeTotal = fixedModules.reduce(
     (sum, m) => sum + getClientUnitPrice(m, settings) * m.quantity,
     0
   );
+  const firstName = metadata.clientContact.split(' ')[0];
 
   const deposit = metadata.depositPercentage;
   const middle = 40;
@@ -55,14 +67,16 @@ export const ClientQuoteView: React.FC<ClientQuoteViewProps> = ({
       <div className="space-y-10">
         <div>
           <p className="text-xs font-mono text-slate-400 mb-2">
-            {displayQuoteNumber(metadata.quoteNumber)}
+            {reference}
           </p>
           <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">
-            Bonjour {metadata.clientContact.split(' ')[0]},
+            {firstName ? `Bonjour ${firstName},` : 'Bonjour,'}
           </h2>
           <p className="text-sm text-slate-500 mt-3 leading-relaxed max-w-xl">
             Voici votre proposition pour <span className="text-slate-800">{metadata.projectName}</span>.
-            Activez ou retirez les options : le récapitulatif se met à jour instantanément.
+            {locked
+              ? `Devis signé le ${formatFrenchDate(signedAt!)}. Merci pour votre confiance.`
+              : 'Activez ou retirez les options : le récapitulatif se met à jour instantanément.'}
           </p>
         </div>
 
@@ -74,9 +88,7 @@ export const ClientQuoteView: React.FC<ClientQuoteViewProps> = ({
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="font-semibold text-slate-900">
-                  {coreModules.length} pages{locator ? ' + Store Locator' : ''}
-                </p>
+                <p className="font-semibold text-slate-900">{scopeTitle}</p>
                 <p className="text-sm text-slate-500 mt-1">
                   Périmètre contractuel verrouillé, recettage et mise en ligne inclus.
                 </p>
@@ -87,7 +99,7 @@ export const ClientQuoteView: React.FC<ClientQuoteViewProps> = ({
               </div>
             </div>
             <ul className="mt-5 grid sm:grid-cols-2 gap-x-6 gap-y-2">
-              {scopeModules.map((m) => (
+              {fixedModules.map((m) => (
                 <li key={m.id} className="flex items-start gap-2 text-sm text-slate-600">
                   <Check className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
                   <span>{m.name}</span>
@@ -112,8 +124,9 @@ export const ClientQuoteView: React.FC<ClientQuoteViewProps> = ({
                     type="button"
                     role="switch"
                     aria-checked={active}
+                    disabled={locked}
                     onClick={() => onToggleOption(m.id, !active)}
-                    className={`w-full text-left bg-white rounded-2xl border shadow-sm p-5 flex items-start gap-4 transition-all ${
+                    className={`w-full text-left bg-white rounded-2xl border shadow-sm p-5 flex items-start gap-4 transition-all disabled:cursor-default ${
                       active ? 'border-slate-900' : 'border-slate-100 hover:border-slate-300'
                     }`}
                   >
@@ -201,13 +214,13 @@ export const ClientQuoteView: React.FC<ClientQuoteViewProps> = ({
           onClick={onOpenQuote}
           className="w-full py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium flex items-center justify-center gap-2 transition-all active:scale-[0.99]"
         >
-          <span>Consulter et signer le devis</span>
+          <span>{locked ? 'Voir le devis signé' : 'Consulter et signer le devis'}</span>
           <ArrowRight className="w-4 h-4" />
         </button>
 
         <p className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
           <Lock className="w-3 h-3" />
-          Lien privé — Roeum Mak, Conseil & Développement Web
+          Lien privé — {issuerName}
         </p>
       </aside>
     </div>

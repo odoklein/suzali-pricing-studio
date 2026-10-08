@@ -1,203 +1,120 @@
 import React from 'react';
-import type { UserRole } from '../../types/quote';
-import { 
-  Share2, 
-  Printer, 
-  Server, 
-  RotateCcw,
-  Sparkles,
-  Lock,
-  ArrowLeftRight
-} from 'lucide-react';
+import { LogOut, UserRound } from 'lucide-react';
 
-interface HeaderProps {
-  currentRole: UserRole;
-  onRoleChange: (role: UserRole) => void;
-  onOpenShareModal: () => void;
-  onOpenArchitectureModal: () => void;
-  onOpenCaseStudyModal: () => void;
-  onOpenPortalSelector: () => void;
-  onReset: () => void;
-  onPrint: () => void;
-  onLock?: () => void;
-  quoteNumber: string;
+export interface NavItem {
+  key: string;
+  label: string;
 }
 
+interface HeaderProps {
+  brandName: string;
+  brandSub?: string;
+  initials: string;
+  navItems?: NavItem[];
+  activeNav?: string;
+  onNavigate?: (key: string) => void;
+  /** Compte connecté (espace interne uniquement) */
+  accountName?: string;
+  onOpenAccount?: () => void;
+  onLogout?: () => void;
+  actions?: React.ReactNode;
+}
+
+export const getInitials = (name: string): string =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join('') || '··';
+
 export const Header: React.FC<HeaderProps> = ({
-  currentRole,
-  onOpenShareModal,
-  onOpenArchitectureModal,
-  onOpenCaseStudyModal,
-  onOpenPortalSelector,
-  onReset,
-  onPrint,
-  onLock,
-  quoteNumber,
-}) => {
-  const isClient = currentRole === 'client';
-  const isPartner = currentRole === 'partner';
-  const isAdmin = currentRole === 'admin';
+  brandName,
+  brandSub,
+  initials,
+  navItems,
+  activeNav,
+  onNavigate,
+  accountName,
+  onOpenAccount,
+  onLogout,
+  actions,
+}) => (
+  <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-100 no-print">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
 
-  return (
-    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-sm transition-all no-print">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 md:h-18">
-          
-          {/* Logo & Identity (Hermetically isolated per role) */}
-          <div className="flex items-center space-x-3.5">
-            {isClient ? (
-              <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center shadow-sm text-white font-bold">
-                <span className="text-sm font-mono tracking-tight">RM</span>
-              </div>
-            ) : isPartner ? (
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-900 to-indigo-950 flex items-center justify-center shadow-xs border border-indigo-800/40 text-indigo-200 font-bold">
-                <span className="text-sm font-mono tracking-tight">RM</span>
-              </div>
-            ) : (
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-950 via-emerald-900 to-green-950 flex items-center justify-center shadow-xs border border-emerald-800/40 text-emerald-300 font-bold">
-                <span className="text-lg tracking-tighter">SZ</span>
-              </div>
-            )}
-
-            <div>
-              <div className="flex items-center space-x-2">
-                {isClient ? (
-                  <>
-                    <span className="font-semibold text-base md:text-lg text-slate-900 tracking-tight">
-                      Roeum Mak
-                    </span>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-50 text-slate-600 border border-slate-100">
-                      Espace Client
-                    </span>
-                  </>
-                ) : isPartner ? (
-                  <>
-                    <span className="font-bold text-base md:text-lg text-slate-900 tracking-tight">
-                      ROEUM MAK
-                    </span>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200">
-                      Espace Partenaire Commercial
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="font-bold text-base md:text-lg text-slate-900 tracking-tight">
-                      SUZALI CONSEIL
-                    </span>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80">
-                      Studio Régie Technique
-                    </span>
-                  </>
-                )}
-                
-                <span className="hidden md:inline-flex text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                  {quoteNumber}
-                </span>
-              </div>
-
-              <p className="text-xs text-slate-500 font-medium tracking-tight">
-                {isClient
-                  ? 'Conseil & Développement Web'
-                  : isPartner
-                  ? 'Gestion du coefficient de marge commerciale et transmission sécurisée client'
-                  : 'Gouvernance des coûts de production, charge en jours et matrice tripartite'}
-              </p>
-            </div>
+      <div className="flex items-center gap-8 min-w-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-sm shrink-0">
+            <span className="text-xs font-mono font-semibold">{initials}</span>
           </div>
-
-          {/* Right Action Buttons */}
-          <div className="flex items-center space-x-2">
-            
-            {/* Cas Réel Bières Georges (Admin/Partner only) */}
-            {isAdmin && (
-              <button
-                onClick={onOpenCaseStudyModal}
-                title="Audit & Rétrospective du Cas Bières Georges (592€ / 642€ vs 14.75j réels)"
-                className="hidden sm:inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 transition-colors"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-700" />
-                <span>Cas Bières Georges</span>
-                <span className="font-mono text-[11px] bg-amber-200/60 px-1 py-0.5 rounded font-bold">642 €</span>
-              </button>
-            )}
-
-            {/* Architecture Modal (Admin only) */}
-            {isAdmin && (
-              <button
-                onClick={onOpenArchitectureModal}
-                title="Consulter l'architecture technique, RBAC & schéma SQL BDD"
-                className="hidden lg:inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors"
-              >
-                <Server className="w-3.5 h-3.5 text-slate-500" />
-                <span>Architecture</span>
-              </button>
-            )}
-
-            {/* Share link modal (Admin/Partner) */}
-            {!isClient ? (
-              <button
-                onClick={onOpenShareModal}
-                title="Générer un lien de partage sécurisé client / partenaire"
-                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors"
-              >
-                <Share2 className="w-3.5 h-3.5 text-slate-600" />
-                <span className="hidden sm:inline">Partager</span>
-              </button>
-            ) : (
-              <div className="flex items-center space-x-1 text-slate-400 text-xs px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-200/80">
-                <Lock className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="font-medium text-slate-600">Lien Privé Sécurisé</span>
-              </div>
-            )}
-
-            {/* PDF print button */}
-            <button
-              onClick={onPrint}
-              title="Télécharger ou imprimer le devis proforma officiel A4"
-              className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white shadow-sm transition-all active:scale-95"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Devis A4</span>
-            </button>
-
-            {/* Portal Switcher Button (never offered to the end client) */}
-            {!isClient && (
-            <button
-              onClick={onOpenPortalSelector}
-              title="Changer de portail / Espace de travail"
-              className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors"
-            >
-              <ArrowLeftRight className="w-3.5 h-3.5 text-slate-500" />
-              <span className="hidden md:inline">Espaces</span>
-            </button>
-            )}
-
-            {/* Lock/Logout button */}
-            {onLock && (
-              <button
-                onClick={onLock}
-                title="Verrouiller la session (Code PIN requis)"
-                className="p-1.5 text-slate-400 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200"
-              >
-                <Lock className="w-3.5 h-3.5" />
-              </button>
-            )}
-
-            {/* Reset button (Admin only) */}
-            {isAdmin && (
-              <button
-                onClick={onReset}
-                title="Réinitialiser aux valeurs d'origine (Base 642 € HT)"
-                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
-            )}
-
+          <div className="min-w-0">
+            <p className="font-semibold text-sm text-slate-900 tracking-tight truncate">{brandName}</p>
+            {brandSub && <p className="text-[11px] text-slate-400 truncate">{brandSub}</p>}
           </div>
         </div>
 
+        {navItems && navItems.length > 0 && (
+          <nav className="hidden sm:flex items-center gap-1">
+            {navItems.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => onNavigate?.(item.key)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  activeNav === item.key
+                    ? 'bg-slate-900 text-white'
+                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        )}
       </div>
-    </header>
-  );
-};
+
+      <div className="flex items-center gap-2 shrink-0">
+        {actions}
+        {accountName && (
+          <button
+            type="button"
+            onClick={onOpenAccount}
+            title="Mon compte"
+            className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors"
+          >
+            <UserRound className="w-3.5 h-3.5 text-slate-400" />
+            <span>{accountName}</span>
+          </button>
+        )}
+        {onLogout && (
+          <button
+            type="button"
+            onClick={onLogout}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 border border-slate-100 shadow-sm hover:text-rose-700 hover:bg-rose-50 transition-colors"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Déconnexion</span>
+          </button>
+        )}
+      </div>
+    </div>
+
+    {navItems && navItems.length > 0 && (
+      <nav className="sm:hidden flex items-center gap-1 px-4 pb-2 overflow-x-auto">
+        {navItems.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => onNavigate?.(item.key)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap ${
+              activeNav === item.key ? 'bg-slate-900 text-white' : 'text-slate-500'
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
+    )}
+  </header>
+);

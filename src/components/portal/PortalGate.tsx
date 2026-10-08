@@ -1,123 +1,69 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { UserRole } from '../../types/quote';
 import { Delete, Lock } from 'lucide-react';
-import { PORTAL_CODES } from '../../data/portalCodes';
 
 interface PortalGateProps {
-  onUnlock: (role: UserRole) => void;
-}
-
-interface PortalConfig {
-  role: UserRole;
-  tab: string;
-  title: string;
-  subtitle: string;
-  allowedCodes: string[];
+  /** Retourne null si la connexion a réussi, sinon le code d'erreur */
+  onSubmit: (pin: string) => Promise<'invalid_pin' | 'too_many_attempts' | 'network' | null>;
+  notice?: string | null;
 }
 
 const PIN_LENGTH = 4;
-
-const PORTALS: PortalConfig[] = [
-  {
-    role: 'client',
-    tab: 'Client',
-    title: 'Espace Client',
-    subtitle: 'Présenté par Roeum Mak',
-    allowedCodes: PORTAL_CODES.client,
-  },
-  {
-    role: 'partner',
-    tab: 'Partenaire',
-    title: 'Espace Partenaire',
-    subtitle: 'Roeum Mak — Vente & marge',
-    allowedCodes: PORTAL_CODES.partner,
-  },
-  {
-    role: 'admin',
-    tab: 'Interne',
-    title: 'Accès interne',
-    subtitle: 'Régie technique',
-    allowedCodes: PORTAL_CODES.admin,
-  },
-];
-
 const NUMPAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
-const detectHashRole = (): UserRole => {
-  const hash = window.location.hash.toLowerCase();
-  if (hash.includes('partner')) return 'partner';
-  if (hash.includes('admin')) return 'admin';
-  return 'client';
+const MESSAGES: Record<string, string> = {
+  invalid_pin: 'Code incorrect',
+  too_many_attempts: 'Trop de tentatives. Réessayez dans quelques minutes.',
+  network: 'Connexion impossible. Réessayez.',
 };
 
-export const PortalGate: React.FC<PortalGateProps> = ({ onUnlock }) => {
-  const [selectedRole, setSelectedRole] = useState<UserRole>(detectHashRole);
+export const PortalGate: React.FC<PortalGateProps> = ({ onSubmit, notice }) => {
   const [pin, setPin] = useState('');
-  const [hasError, setHasError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
-
-  const activePortal = PORTALS.find((p) => p.role === selectedRole)!;
 
   useEffect(() => {
     inputRef.current?.focus();
-  }, [selectedRole]);
+  }, []);
 
-  const submit = (code: string) => {
-    if (activePortal.allowedCodes.includes(code)) {
-      onUnlock(selectedRole);
-    } else {
-      setHasError(true);
-      setTimeout(() => {
-        setPin('');
-        setHasError(false);
-        inputRef.current?.focus();
-      }, 600);
-    }
+  const submit = async (code: string) => {
+    setBusy(true);
+    const result = await onSubmit(code);
+    if (result === null) return; // l'écran est remplacé par l'application
+    setBusy(false);
+    setError(result);
+    setTimeout(() => {
+      setPin('');
+      setError(null);
+      inputRef.current?.focus();
+    }, 1200);
   };
 
   const updatePin = (next: string) => {
-    if (hasError) return;
+    if (busy || error) return;
     const clean = next.replace(/\D/g, '').slice(0, PIN_LENGTH);
     setPin(clean);
-    if (clean.length === PIN_LENGTH) submit(clean);
+    if (clean.length === PIN_LENGTH) void submit(clean);
   };
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 py-12 text-slate-900">
       <div className="w-full max-w-sm">
 
-        {/* Brand */}
         <div className="text-center mb-10">
           <div className="mx-auto w-11 h-11 rounded-xl border border-slate-100 shadow-sm flex items-center justify-center mb-6">
             <Lock className="w-4 h-4 text-slate-700" />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">{activePortal.title}</h1>
-          <p className="text-sm text-slate-500 mt-1.5">{activePortal.subtitle}</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Espace sécurisé</h1>
+          <p className="text-sm text-slate-500 mt-1.5">Saisissez votre code d'accès</p>
         </div>
 
-        {/* Profile tabs */}
-        <div className="grid grid-cols-3 p-1 rounded-xl border border-slate-100 bg-slate-50 mb-8">
-          {PORTALS.map((portal) => (
-            <button
-              key={portal.role}
-              type="button"
-              onClick={() => {
-                setSelectedRole(portal.role);
-                setPin('');
-                setHasError(false);
-              }}
-              className={`py-2 rounded-lg text-xs font-medium transition-all ${
-                selectedRole === portal.role
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              {portal.tab}
-            </button>
-          ))}
-        </div>
+        {notice && (
+          <p className="mb-6 text-center text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-xl py-2.5 px-3">
+            {notice}
+          </p>
+        )}
 
-        {/* PIN boxes (single hidden input keeps keyboard + mobile entry simple) */}
         <div className="relative mb-2">
           <input
             ref={inputRef}
@@ -131,35 +77,30 @@ export const PortalGate: React.FC<PortalGateProps> = ({ onUnlock }) => {
             className="absolute inset-0 w-full h-full opacity-0 cursor-default"
           />
           <div
-            className={`grid grid-cols-4 gap-3 ${hasError ? 'animate-pulse' : ''}`}
+            className={`grid grid-cols-4 gap-3 ${error ? 'animate-pulse' : ''}`}
             onClick={() => inputRef.current?.focus()}
           >
-            {Array.from({ length: PIN_LENGTH }).map((_, i) => {
-              const filled = i < pin.length;
-              const isCurrent = i === pin.length && !hasError;
-              return (
-                <div
-                  key={i}
-                  className={`h-16 rounded-xl border flex items-center justify-center transition-all shadow-sm ${
-                    hasError
-                      ? 'border-rose-300 bg-rose-50'
-                      : isCurrent
-                      ? 'border-slate-900'
-                      : 'border-slate-100'
-                  }`}
-                >
-                  {filled && <span className="w-2.5 h-2.5 rounded-full bg-slate-900" />}
-                </div>
-              );
-            })}
+            {Array.from({ length: PIN_LENGTH }).map((_, i) => (
+              <div
+                key={i}
+                className={`h-16 rounded-xl border flex items-center justify-center transition-all shadow-sm ${
+                  error
+                    ? 'border-rose-300 bg-rose-50'
+                    : i === pin.length && !busy
+                    ? 'border-slate-900'
+                    : 'border-slate-100'
+                }`}
+              >
+                {i < pin.length && <span className="w-2.5 h-2.5 rounded-full bg-slate-900" />}
+              </div>
+            ))}
           </div>
         </div>
 
-        <p className={`h-5 text-center text-xs mb-6 ${hasError ? 'text-rose-600' : 'text-transparent'}`}>
-          Code incorrect
+        <p className={`min-h-5 text-center text-xs mb-6 ${error ? 'text-rose-600' : 'text-slate-400'}`}>
+          {error ? MESSAGES[error] ?? 'Erreur' : busy ? 'Vérification…' : ''}
         </p>
 
-        {/* Numpad */}
         <div className="grid grid-cols-3 gap-3">
           {NUMPAD_KEYS.map((key) => (
             <button
@@ -189,9 +130,7 @@ export const PortalGate: React.FC<PortalGateProps> = ({ onUnlock }) => {
           </button>
         </div>
 
-        <p className="text-center text-[11px] text-slate-400 mt-10">
-          Accès confidentiel et sécurisé
-        </p>
+        <p className="text-center text-[11px] text-slate-400 mt-10">Accès confidentiel et sécurisé</p>
       </div>
     </div>
   );

@@ -271,6 +271,7 @@ export const PageTable: React.FC<PageTableProps> = ({
               />
             </div>
             <div className="flex items-end space-x-2">
+              {settings.mode === 'forfait' && (
               <div className="w-1/2">
                 <label className="block text-slate-600 mb-1">Prix Base (€)</label>
                 <input
@@ -282,6 +283,7 @@ export const PageTable: React.FC<PageTableProps> = ({
                   className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-lg font-mono text-slate-900"
                 />
               </div>
+              )}
               <div className="w-1/2">
                 <label className="block text-slate-600 mb-1">Délai (j)</label>
                 <input
@@ -311,7 +313,7 @@ export const PageTable: React.FC<PageTableProps> = ({
             <tr className="bg-slate-50/80 text-slate-500 uppercase tracking-wider text-[11px] font-semibold border-b border-slate-200">
               <th className="py-3 px-4 w-12 text-center">Qté</th>
               <th className="py-3 px-4 min-w-[260px]">Livrable & Spécification Inclus</th>
-              {isAdmin && <th className="py-3 px-4 w-24 text-right">Délai (j)</th>}
+              {!isClient && <th className="py-3 px-4 w-24 text-right">Délai (j)</th>}
               {!isClient && <th className="py-3 px-4 w-28 text-right">{isAdmin ? 'Coût Suzali' : "Prix d'achat"}</th>}
               <th className="py-3 px-4 w-32 text-right">Prix Client HT</th>
               <th className="py-3 px-4 w-32 text-right">Total Ligne HT</th>
@@ -325,6 +327,7 @@ export const PageTable: React.FC<PageTableProps> = ({
                 ? mod.basePrice * (1 + settings.partnerMarginPercent / 100)
                 : (mod.days * settings.tjmSuzali) * (1 + settings.partnerMarginPercent / 100);
 
+              const unitCost = settings.mode === 'forfait' ? mod.basePrice : mod.days * settings.tjmSuzali;
               const lineSuzaliTotal = settings.mode === 'forfait'
                 ? mod.basePrice * mod.quantity
                 : (mod.days * settings.tjmSuzali) * mod.quantity;
@@ -432,8 +435,9 @@ export const PageTable: React.FC<PageTableProps> = ({
                   </td>
 
                   {/* Délai (jours) - Admin only */}
-                  {isAdmin && (
+                  {!isClient && (
                     <td className="py-3.5 px-4 text-right align-top font-mono">
+                      {isAdmin || mod.isCustom ? (
                       <div className="inline-flex items-center space-x-1">
                         <input
                           type="number"
@@ -445,6 +449,9 @@ export const PageTable: React.FC<PageTableProps> = ({
                         />
                         <span className="text-slate-500 text-xs">j</span>
                       </div>
+                      ) : (
+                        <span className="font-medium text-slate-700">{formatDays(mod.days)}</span>
+                      )}
                       <div className="text-[10px] text-slate-400 mt-1">
                         Total : {formatDays(mod.days * mod.quantity)}
                       </div>
@@ -468,7 +475,7 @@ export const PageTable: React.FC<PageTableProps> = ({
                         </div>
                       ) : (
                         <span className="font-semibold text-slate-700">
-                          {formatEuros(mod.basePrice)}
+                          {formatEuros(unitCost)}
                         </span>
                       )}
                       <div className="text-[10px] text-slate-400 mt-1">

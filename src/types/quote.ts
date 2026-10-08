@@ -14,6 +14,7 @@ export interface PageModule {
   minQuantity?: number;
   maxQuantity?: number;
   isCustom?: boolean;
+  optional?: boolean;      // Option à la carte (activable par le client) — renseigné dans le devis client
 }
 
 export interface ClientMetadata {
@@ -25,6 +26,7 @@ export interface ClientMetadata {
   partnerCompany: string;
   partnerContact: string;
   partnerEmail: string;
+  partnerTagline: string;
   partnerPhone: string;
   partnerAddress: string;
   partnerSiret: string;
@@ -57,4 +59,84 @@ export interface QuoteCalculations {
   vatAmount: number;
   totalTTC: number;
   depositAmount: number;
+}
+
+export type AccountRole = 'admin' | 'owner' | 'partner';
+export type QuoteStatus = 'draft' | 'sent' | 'signed';
+
+export interface Account {
+  id: string;
+  role: AccountRole;
+  name: string;
+  tagline: string;
+  dailyRate: number;
+  contactName: string;
+  email: string;
+  phone: string;
+  address: string;
+  siret: string;
+  active: boolean;
+}
+
+export interface PartnerAccount extends Account {
+  quoteCount: number;
+  signedCount: number;
+}
+
+export interface QuoteSummary {
+  id: string;
+  reference: string;
+  title: string;
+  clientName: string;
+  clientEmail: string;
+  status: QuoteStatus;
+  totalHt: number;
+  accountId: string;
+  accountName: string;
+  updatedAt: string;
+  createdAt: string;
+  signedAt: string | null;
+  signedBy: string | null;
+}
+
+/** Version du devis exposée au client : prix de vente uniquement, jamais les coûts ni la marge. */
+export interface ClientSnapshot {
+  modules: PageModule[];
+  settings: PricingSettings;
+  metadata: ClientMetadata;
+}
+
+export interface QuoteData {
+  modules: PageModule[];
+  settings: PricingSettings;
+  metadata: ClientMetadata;
+  clientSnapshot: ClientSnapshot;
+}
+
+export interface QuoteRecord extends QuoteSummary {
+  data: QuoteData;
+  shareToken: string;
+  signature: string | null;
+}
+
+export interface Issuer {
+  name: string;
+  tagline: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  address: string;
+  siret: string;
+}
+
+export interface ClientQuoteView {
+  reference: string;
+  title: string;
+  status: QuoteStatus;
+  snapshot: ClientSnapshot;
+  issuer: Issuer;
+  signedBy: string | null;
+  signedAt: string | null;
+  signature: string | null;
+  updatedAt: string;
 }
