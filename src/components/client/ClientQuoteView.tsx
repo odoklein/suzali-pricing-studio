@@ -1,7 +1,8 @@
 import React from 'react';
-import { ArrowRight, Check, Lock } from 'lucide-react';
+import { ArrowRight, Check, Lock, Plus } from 'lucide-react';
 import type { PageModule, ClientMetadata, PricingSettings, QuoteCalculations } from '../../types/quote';
 import {
+  EXTRA_RETOUCHES_ID,
   addDays,
   formatDays,
   formatEuros,
@@ -27,6 +28,12 @@ interface ClientQuoteViewProps {
   /** Devis signé : options figées */
   signedAt?: string | null;
 }
+
+/** « Option : version bilingue » devient « Version bilingue » */
+const optionLabel = (name: string) => {
+  const label = name.replace(/^Option\s*:\s*/, '');
+  return label.charAt(0).toUpperCase() + label.slice(1);
+};
 
 const sectionTitle = 'mb-3 flex items-baseline justify-between gap-3 text-xs font-semibold text-muted';
 
@@ -97,23 +104,33 @@ export const ClientQuoteView: React.FC<ClientQuoteViewProps> = ({
           </h2>
           <Card>
             <ul className="divide-y divide-line">
-              {fixedModules.map((m) => (
-                <li key={m.id} className="flex items-start gap-3.5 px-5 py-4">
-                  <span
-                    aria-hidden="true"
-                    className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-done-soft text-done-text ring-1 ring-inset ring-done/25"
-                  >
-                    <Check className="size-3" strokeWidth={2.5} />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-body font-medium">
-                      {m.name}
-                      {m.quantity > 1 && <span className="font-normal text-muted"> × {m.quantity}</span>}
-                    </p>
-                    {m.description && <p className="mt-0.5 text-ui leading-relaxed text-muted">{m.description}</p>}
-                  </div>
-                </li>
-              ))}
+              {fixedModules.map((m) => {
+                // Les retouches facturées sont un supplément, pas une partie du périmètre inclus
+                const extra = m.id === EXTRA_RETOUCHES_ID;
+                return (
+                  <li key={m.id} className="flex items-start gap-3.5 px-5 py-4">
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        'mt-0.5 grid size-5 shrink-0 place-items-center rounded-full ring-1 ring-inset',
+                        extra ? 'bg-sunken text-ink-2 ring-line-strong' : 'bg-done-soft text-done-text ring-done/25'
+                      )}
+                    >
+                      {extra ? <Plus className="size-3" strokeWidth={2.5} /> : <Check className="size-3" strokeWidth={2.5} />}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-body font-medium">
+                        {m.name}
+                        {m.quantity > 1 && <span className="font-normal text-muted"> × {m.quantity}</span>}
+                      </p>
+                      {m.description && <p className="mt-0.5 text-ui leading-relaxed text-muted">{m.description}</p>}
+                    </div>
+                    {extra && (
+                      <p className="tabular shrink-0 font-mono text-ui font-semibold">{formatEuros(getClientUnitPrice(m, settings) * m.quantity)}</p>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
             <p className="border-t border-line px-5 py-3 text-xs text-muted">
               Périmètre contractuel verrouillé, recettage et mise en ligne inclus.
@@ -156,7 +173,7 @@ export const ClientQuoteView: React.FC<ClientQuoteViewProps> = ({
                       {active && <Check className="size-3.5" strokeWidth={2.5} />}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-body font-medium">{m.name.replace(/^Option\s*:\s*/, '')}</span>
+                      <span className="block text-body font-medium">{optionLabel(m.name)}</span>
                       <span className="mt-0.5 block text-ui leading-relaxed text-muted">{m.description}</span>
                     </span>
                     <span className="shrink-0 text-right">
