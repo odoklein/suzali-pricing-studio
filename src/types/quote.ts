@@ -8,7 +8,8 @@ export interface PageModule {
   category: 'core' | 'content' | 'interactive' | 'ecommerce' | 'compliance';
   description: string;
   includedDetails: string; // Descriptif modifiable de ce qui est inclus
-  basePrice: number;       // Coût de production de base Suzali (€ HT)
+  basePrice: number;       // Prix d'achat unitaire (€ HT)
+  clientPrice?: number;    // Prix client unitaire saisi par le partenaire (défaut : prix d'achat)
   days: number;            // Charge estimée en jours ouvrés ( Suzali dev )
   quantity: number;        // Stepper quantité (0 si désactivé, >= 1 si actif)
   minQuantity?: number;
@@ -41,20 +42,32 @@ export interface PricingSettings {
   mode: PricingMode;
   tjmSuzali: number;          // TJM interne de référence (€/j)
   partnerMarginPercent: number; // Marge commerciale partenaire (%)
-  managementDaysFixed: number;  // Gestion de projet & socle technique (j)
+  bufferPercent: number;        // Marge de sécurité appliquée au délai (%)
+  retouchesIncludedPerPage: number; // Retouches comprises dans le forfait, par page
+  retouchUnitPrice: number;     // Prix d'une retouche supplémentaire (€ HT)
+  retouchesRequested: number;   // Retouches demandées au total (globales)
   vatRate: number;              // TVA standard (ex: 20%)
-  discountPercent: number;      // Remise éventuelle (%)
+  /** Hérité des anciens devis : plus exposé ni appliqué */
+  discountPercent: number;
 }
 
 export interface QuoteCalculations {
   activeModuleCount: number;
+  /** Charge brute en jours, avant marge de sécurité */
   totalDevDays: number;
-  totalManagementDays: number;
+  /** Jours de marge de sécurité */
+  bufferDays: number;
+  /** Délai total en jours (charge + marge de sécurité) */
   totalDays: number;
+  pageCount: number;
+  retouchesIncluded: number;
+  retouchesBillable: number;
+  retouchesCost: number;
   baseSuzaliCostHT: number;
   partnerMarginAmount: number;
+  /** Marge après remise : ce que le partenaire gagne réellement */
+  netMarginAmount: number;
   sellingPriceHT: number;
-  discountAmount: number;
   finalSellingPriceHT: number;
   vatAmount: number;
   totalTTC: number;
@@ -76,6 +89,8 @@ export interface Account {
   address: string;
   siret: string;
   active: boolean;
+  /** Mot de passe provisoire : à remplacer avant toute autre action */
+  mustChangePassword?: boolean;
 }
 
 export interface PartnerAccount extends Account {

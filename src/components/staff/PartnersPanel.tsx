@@ -1,8 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Check, Copy, Plus, Sparkles, Users } from 'lucide-react';
 import type { PartnerAccount } from '../../types/quote';
 import { listPartners, savePartner, errorMessage, type AccountProfile } from '../../lib/api';
 import { formatEuros } from '../../utils/formatters';
-import { Plus, X } from 'lucide-react';
+import { getInitials } from '../../lib/initials';
+import { Button } from '../ui/button';
+import { Field, Input } from '../ui/input';
+import { Badge, Card, Dialog, EmptyState, Monogram, Notice, PageHeader } from '../ui/display';
 
 interface PartnersPanelProps {
   token: string;
@@ -11,39 +15,40 @@ interface PartnersPanelProps {
 interface FormState extends AccountProfile {
   id: string | null;
   active: boolean;
-  pin: string;
+  password: string;
 }
 
 const emptyForm: FormState = {
   id: null,
   name: '',
   tagline: '',
-  dailyRate: 175,
+  dailyRate: 75,
   contactName: '',
   email: '',
   phone: '',
   address: '',
   siret: '',
   active: true,
-  pin: '',
+  password: '',
 };
 
-const inputCls =
-  'w-full px-3 py-2 rounded-xl border border-slate-100 shadow-sm bg-white text-sm text-slate-900 focus:outline-none focus:border-slate-900 transition-colors';
+/** Mot de passe aléatoire de 12 caractères, sans caractères ambigus */
+const generatePassword = (): string => {
+  const alphabet = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
+};
 
-const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <label className="block">
-    <span className="block text-[11px] text-slate-400 mb-1">{label}</span>
-    {children}
-  </label>
-);
+const th = 'px-5 py-2.5 text-xs font-medium text-muted';
 
 export const PartnersPanel: React.FC<PartnersPanelProps> = ({ token }) => {
   const [partners, setPartners] = useState<PartnerAccount[] | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [createdPin, setCreatedPin] = useState<{ name: string; pin: string } | null>(null);
+  const [created, setCreated] = useState<{ name: string; email: string; password: string } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -60,174 +65,237 @@ export const PartnersPanel: React.FC<PartnersPanelProps> = ({ token }) => {
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => (f ? { ...f, [key]: value } : f));
 
+  const openForm = (next: FormState) => {
+    setForm(next);
+    setFormError(null);
+    setCreated(null);
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form) return;
     setSaving(true);
-    setError(null);
+    setFormError(null);
     try {
-      const pin = form.pin.trim() === '' ? null : form.pin.trim();
-      await savePartner(token, form.id, form, pin);
-      if (form.id === null && pin) setCreatedPin({ name: form.name, pin });
+      const password = form.password === '' ? null : form.password;
+      await savePartner(token, form.id, form, password);
+      if (password) setCreated({ name: form.name, email: form.email, password });
       setForm(null);
       await refresh();
     } catch (err) {
-      setError(errorMessage(err));
+      setFormError(errorMessage(err));
     } finally {
       setSaving(false);
     }
   };
 
+  const copyAccess = async () => {
+    if (!created) return;
+    try {
+      await navigator.clipboard.writeText(`E-mail : ${created.email}\nMot de passe provisoire : ${created.password}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      window.prompt('Copiez ces accès :', `${created.email} / ${created.password}`);
+    }
+  };
+
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Partenaires</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Chaque partenaire a son espace, son code et son tarif journalier de base.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            setForm({ ...emptyForm });
-            setCreatedPin(null);
-          }}
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Nouveau partenaire</span>
-        </button>
-      </div>
+      <PageHeader
+        title="Partenaires"
+        description="Chaque partenaire a son espace, son e-mail de connexion et son tarif journalier."
+        actions={
+          <Button variant="primary" icon={<Plus className="size-4" aria-hidden="true" />} onClick={() => openForm({ ...emptyForm })}>
+            Nouveau partenaire
+          </Button>
+        }
+      />
 
       {error && (
-        <p className="mb-6 text-xs text-rose-700 bg-rose-50 border border-rose-100 rounded-xl px-4 py-3">{error}</p>
+        <Notice tone="danger" role="alert" className="mt-5">
+          {error}
+        </Notice>
       )}
 
-      {createdPin && (
-        <p className="mb-6 text-sm text-slate-700 bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
-          Compte créé pour <strong>{createdPin.name}</strong>. Code d'accès à lui transmettre :{' '}
-          <span className="font-mono font-semibold text-slate-900">{createdPin.pin}</span> (il ne sera plus affiché).
-        </p>
+      {created && (
+        <Notice
+          tone="done"
+          className="mt-5"
+          action={
+            <Button size="sm" icon={copied ? <Check className="size-3.5" aria-hidden="true" /> : <Copy className="size-3.5" aria-hidden="true" />} onClick={copyAccess}>
+              {copied ? 'Copié' : 'Copier les accès'}
+            </Button>
+          }
+        >
+          <p className="font-medium">Accès de {created.name}</p>
+          <p className="mt-0.5">
+            <span className="font-mono">{created.email}</span> · mot de passe provisoire{' '}
+            <span className="font-mono font-semibold">{created.password}</span>
+          </p>
+          <p className="mt-0.5 text-xs opacity-80">Il ne sera plus affiché et devra être remplacé à la première connexion.</p>
+        </Notice>
       )}
+
+      <Card className="mt-6 overflow-hidden">
+        {partners === null ? (
+          <p className="px-5 py-10 text-center text-ui text-muted">Chargement…</p>
+        ) : partners.length === 0 ? (
+          <EmptyState
+            icon={<Users />}
+            title="Aucun partenaire"
+            action={
+              <Button variant="primary" icon={<Plus className="size-4" aria-hidden="true" />} onClick={() => openForm({ ...emptyForm })}>
+                Créer le premier partenaire
+              </Button>
+            }
+          >
+            Un partenaire reçoit un e-mail de connexion, un mot de passe provisoire et son propre tarif journalier.
+          </EmptyState>
+        ) : (
+          <div className="overflow-x-auto scroll-thin">
+            <table className="w-full min-w-[640px] text-left text-ui">
+              <thead>
+                <tr className="border-b border-line bg-surface-2">
+                  <th scope="col" className={th}>Partenaire</th>
+                  <th scope="col" className={`${th} text-right`}>Tarif / jour</th>
+                  <th scope="col" className={`${th} text-right`}>Devis</th>
+                  <th scope="col" className={`${th} text-right`}>Signés</th>
+                  <th scope="col" className={th}>Statut</th>
+                  <th scope="col" className="w-24">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {partners.map((p) => (
+                  <tr key={p.id} className="transition-colors hover:bg-surface-2">
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-3">
+                        <Monogram label={getInitials(p.name)} size={32} />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{p.name}</p>
+                          <p className="truncate text-xs text-muted">{[p.contactName, p.email].filter(Boolean).join(' · ') || '—'}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="tabular px-5 py-3 text-right font-mono">{formatEuros(p.dailyRate, false)}</td>
+                    <td className="tabular px-5 py-3 text-right font-mono">{p.quoteCount}</td>
+                    <td className="tabular px-5 py-3 text-right font-mono">{p.signedCount}</td>
+                    <td className="px-5 py-3">
+                      <Badge tone={p.active ? 'done' : 'neutral'}>{p.active ? 'Actif' : 'Désactivé'}</Badge>
+                    </td>
+                    <td className="py-3 pr-4 text-right">
+                      <Button variant="ghost" size="sm" onClick={() => openForm({ ...p, password: '' })}>
+                        Modifier
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
 
       {form && (
-        <form onSubmit={handleSave} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 mb-8">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="font-semibold text-slate-900">{form.id ? 'Modifier le partenaire' : 'Nouveau partenaire'}</h2>
-            <button type="button" onClick={() => setForm(null)} className="p-1.5 text-slate-400 hover:text-slate-800">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Field label="Nom de la société">
-              <input required className={inputCls} value={form.name} onChange={(e) => set('name', e.target.value)} />
-            </Field>
-            <Field label="Accroche (sous le nom)">
-              <input className={inputCls} value={form.tagline} onChange={(e) => set('tagline', e.target.value)} />
-            </Field>
-            <Field label="Tarif journalier de base (€ HT / jour)">
-              <input
-                type="number"
-                min={0}
-                max={5000}
-                step={5}
-                required
-                className={`${inputCls} font-mono`}
-                value={form.dailyRate}
-                onChange={(e) => set('dailyRate', Number(e.target.value))}
-              />
-            </Field>
-            <Field label="Contact">
-              <input className={inputCls} value={form.contactName} onChange={(e) => set('contactName', e.target.value)} />
-            </Field>
-            <Field label="E-mail">
-              <input type="email" className={inputCls} value={form.email} onChange={(e) => set('email', e.target.value)} />
-            </Field>
-            <Field label="Téléphone">
-              <input className={inputCls} value={form.phone} onChange={(e) => set('phone', e.target.value)} />
-            </Field>
-            <Field label="Adresse">
-              <input className={inputCls} value={form.address} onChange={(e) => set('address', e.target.value)} />
-            </Field>
-            <Field label="SIRET">
-              <input className={inputCls} value={form.siret} onChange={(e) => set('siret', e.target.value)} />
-            </Field>
-            <Field label={form.id ? 'Nouveau code (laisser vide pour conserver)' : "Code d'accès (4 chiffres)"}>
-              <input
-                inputMode="numeric"
-                pattern="[0-9]{4}"
-                maxLength={4}
-                required={!form.id}
-                className={`${inputCls} font-mono tracking-widest`}
-                value={form.pin}
-                onChange={(e) => set('pin', e.target.value.replace(/\D/g, ''))}
-              />
-            </Field>
-          </div>
-          <div className="mt-5 flex items-center justify-between">
-            <label className="flex items-center gap-2 text-sm text-slate-600">
-              <input type="checkbox" checked={form.active} onChange={(e) => set('active', e.target.checked)} />
-              Compte actif
-            </label>
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium disabled:opacity-60"
-            >
-              {saving ? 'Enregistrement…' : 'Enregistrer'}
-            </button>
-          </div>
-        </form>
-      )}
+        <Dialog title={form.id ? 'Modifier le partenaire' : 'Nouveau partenaire'} onClose={() => setForm(null)} size="lg">
+          <form onSubmit={handleSave} className="p-5">
+            {formError && (
+              <Notice tone="danger" role="alert" className="mb-4">
+                {formError}
+              </Notice>
+            )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {partners === null && <p className="text-sm text-slate-400">Chargement…</p>}
-        {partners?.length === 0 && (
-          <p className="text-sm text-slate-400">Aucun partenaire. Créez le premier avec le bouton ci-dessus.</p>
-        )}
-        {partners?.map((p) => (
-          <div key={p.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="font-semibold text-slate-900">{p.name}</p>
-                <p className="text-xs text-slate-400">{p.contactName || p.email || '—'}</p>
-              </div>
-              <span
-                className={`text-[11px] px-2 py-0.5 rounded-full border ${
-                  p.active ? 'bg-emerald-50 text-emerald-800 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-100'
-                }`}
-              >
-                {p.active ? 'Actif' : 'Désactivé'}
-              </span>
+            <div className="grid grid-cols-1 gap-x-4 gap-y-4 md:grid-cols-2">
+              <Field label="Société">
+                {(id) => <Input id={id} required value={form.name} onChange={(e) => set('name', e.target.value)} />}
+              </Field>
+              <Field label="Accroche (sous le nom)">
+                {(id) => <Input id={id} value={form.tagline} onChange={(e) => set('tagline', e.target.value)} />}
+              </Field>
+              <Field label="E-mail (identifiant de connexion)">
+                {(id) => (
+                  <Input id={id} type="email" required autoComplete="off" value={form.email} onChange={(e) => set('email', e.target.value)} />
+                )}
+              </Field>
+              <Field label="Tarif journalier (€ HT / jour)">
+                {(id) => (
+                  <Input
+                    id={id}
+                    type="number"
+                    min={0}
+                    max={5000}
+                    step={5}
+                    required
+                    className="font-mono"
+                    value={form.dailyRate}
+                    onChange={(e) => set('dailyRate', Number(e.target.value))}
+                  />
+                )}
+              </Field>
+              <Field label="Contact">
+                {(id) => <Input id={id} value={form.contactName} onChange={(e) => set('contactName', e.target.value)} />}
+              </Field>
+              <Field label="Téléphone">
+                {(id) => <Input id={id} value={form.phone} onChange={(e) => set('phone', e.target.value)} />}
+              </Field>
+              <Field label="Adresse">
+                {(id) => <Input id={id} value={form.address} onChange={(e) => set('address', e.target.value)} />}
+              </Field>
+              <Field label="SIRET">
+                {(id) => <Input id={id} className="font-mono" value={form.siret} onChange={(e) => set('siret', e.target.value)} />}
+              </Field>
             </div>
-            <dl className="grid grid-cols-3 gap-4 mt-5 text-sm">
-              <div>
-                <dt className="text-[11px] text-slate-400">Tarif / jour</dt>
-                <dd className="font-mono text-slate-900">{formatEuros(p.dailyRate, false)}</dd>
+
+            <div className="mt-5 rounded-lg border border-line bg-surface-2 p-4">
+              <Field label={form.id ? 'Nouveau mot de passe provisoire' : 'Mot de passe provisoire'}>
+                {(id) => (
+                  <div className="flex gap-2">
+                    <Input
+                      id={id}
+                      minLength={10}
+                      autoComplete="off"
+                      required={!form.id}
+                      className="font-mono"
+                      hint={
+                        form.id
+                          ? 'Laissez vide pour conserver le mot de passe actuel.'
+                          : '10 caractères minimum. Le partenaire devra le remplacer à sa première connexion.'
+                      }
+                      value={form.password}
+                      onChange={(e) => set('password', e.target.value)}
+                    />
+                    <Button icon={<Sparkles className="size-4" aria-hidden="true" />} onClick={() => set('password', generatePassword())}>
+                      Générer
+                    </Button>
+                  </div>
+                )}
+              </Field>
+            </div>
+
+            <div className="mt-6 flex items-center justify-between gap-3">
+              <label className="flex items-center gap-2 text-ui text-ink-2">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-[var(--accent)]"
+                  checked={form.active}
+                  onChange={(e) => set('active', e.target.checked)}
+                />
+                Compte actif
+              </label>
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={() => setForm(null)}>
+                  Annuler
+                </Button>
+                <Button type="submit" variant="primary" loading={saving}>
+                  Enregistrer
+                </Button>
               </div>
-              <div>
-                <dt className="text-[11px] text-slate-400">Devis</dt>
-                <dd className="font-mono text-slate-900">{p.quoteCount}</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] text-slate-400">Signés</dt>
-                <dd className="font-mono text-slate-900">{p.signedCount}</dd>
-              </div>
-            </dl>
-            <button
-              type="button"
-              onClick={() => {
-                setForm({ ...p, pin: '' });
-                setCreatedPin(null);
-              }}
-              className="mt-5 text-xs font-medium text-slate-600 hover:text-slate-900 underline underline-offset-4"
-            >
-              Modifier
-            </button>
-          </div>
-        ))}
-      </div>
+            </div>
+          </form>
+        </Dialog>
+      )}
     </div>
   );
 };

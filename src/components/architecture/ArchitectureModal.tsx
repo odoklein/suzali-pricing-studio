@@ -30,7 +30,7 @@ CREATE TYPE user_role_enum AS ENUM ('suzali_admin', 'partner_agency', 'end_clien
 CREATE TYPE pricing_mode_enum AS ENUM ('forfait', 'tjm');
 CREATE TYPE quote_status_enum AS ENUM ('draft', 'sent_to_partner', 'sent_to_client', 'approved', 'rejected');
 
--- 2. ORGANIZATIONS (Suzali, Partenaires ex: Roeum Mak, Clients ex: Bières Georges)
+-- 2. ORGANIZATIONS (Suzali, Partenaires ex: Roeum Mak, Clients finaux)
 CREATE TABLE organizations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
@@ -57,7 +57,7 @@ CREATE TABLE quotes (
     quote_number VARCHAR(50) UNIQUE NOT NULL, -- ex: SZ-2026-BG-642
     provider_org_id UUID REFERENCES organizations(id) NOT NULL, -- Suzali
     partner_org_id UUID REFERENCES organizations(id),          -- Roeum Mak
-    client_org_id UUID REFERENCES organizations(id) NOT NULL,   -- Bières Georges
+    client_org_id UUID REFERENCES organizations(id) NOT NULL,   -- client final
     project_name VARCHAR(255) NOT NULL,
     pricing_mode pricing_mode_enum DEFAULT 'forfait',
     tjm_suzali NUMERIC(10, 2) DEFAULT 175.00,
@@ -75,7 +75,7 @@ CREATE TABLE quotes (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 5. QUOTE LINE ITEMS / MODULES (Pages, Store Locator, Custom Modules)
+-- 5. QUOTE LINE ITEMS / MODULES (Pages, Options, Custom Modules)
 CREATE TABLE quote_modules (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     quote_id UUID REFERENCES quotes(id) ON DELETE CASCADE,
@@ -84,7 +84,7 @@ CREATE TABLE quote_modules (
     category VARCHAR(50) NOT NULL,
     description TEXT,
     included_details TEXT NOT NULL, -- Verrouillage contractuel du périmètre
-    base_price_ht NUMERIC(10, 2) NOT NULL, -- Coût de base Suzali (ex: 50.00 pour Store locator)
+    base_price_ht NUMERIC(10, 2) NOT NULL, -- Coût de base Suzali (ex: 120.00 pour une page d accueil)
     days_estimate NUMERIC(5, 2) NOT NULL,  -- Charge en jours (ex: 0.35j)
     quantity INT DEFAULT 1,
     is_custom BOOLEAN DEFAULT FALSE,
@@ -218,7 +218,7 @@ CREATE POLICY client_view_quote ON quotes
                       <th className="py-2.5 px-3">Fonctionnalité / Donnée</th>
                       <th className="py-2.5 px-3 text-center">Suzali Admin</th>
                       <th className="py-2.5 px-3 text-center">Partenaire (Roeum Mak)</th>
-                      <th className="py-2.5 px-3 text-center">Client Final (Bières Georges)</th>
+                      <th className="py-2.5 px-3 text-center">Client Final</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">

@@ -1,0 +1,108 @@
+import React from 'react';
+import { cn } from '../../lib/cn';
+
+export type ButtonVariant = 'primary' | 'accent' | 'secondary' | 'ghost' | 'danger';
+export type ButtonSize = 'sm' | 'md' | 'lg' | 'icon';
+
+const base =
+  'relative inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap font-medium outline-hidden ' +
+  'transition-[background-color,border-color,color,box-shadow,transform] duration-[var(--dur-1)] ' +
+  'active:scale-[.98] focus-visible:shadow-[var(--ring)] disabled:pointer-events-none disabled:opacity-45';
+
+const variants: Record<ButtonVariant, string> = {
+  primary: 'bg-primary text-primary-ink shadow-button hover:bg-primary/90',
+  accent: 'bg-accent text-accent-ink shadow-button hover:bg-accent/90',
+  secondary: 'border border-line bg-surface text-ink-2 shadow-xs hover:border-line-strong hover:text-ink',
+  ghost: 'text-ink-2 hover:bg-sunken hover:text-ink',
+  danger: 'bg-danger text-accent-ink hover:bg-danger/90',
+};
+
+const sizes: Record<ButtonSize, string> = {
+  // Au toucher, un pseudo-élément prolonge la zone cliquable jusqu’à 44 px sans agrandir le bouton.
+  sm: 'h-7 gap-1.5 rounded-sm px-2.5 text-xs pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-2',
+  md: 'h-8 gap-2 rounded-md px-3 text-ui pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-1.5',
+  lg: 'h-10 gap-2 rounded-md px-4 text-body pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-0.5',
+  icon: 'size-8 rounded-md pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5',
+};
+
+export function buttonClass({
+  variant = 'secondary',
+  size = 'md',
+  className,
+}: { variant?: ButtonVariant; size?: ButtonSize; className?: string } = {}) {
+  return cn(base, variants[variant], sizes[size], className);
+}
+
+export function Spinner({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" className={cn('size-4 animate-spin', className)}>
+      <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.25" />
+      <path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  /** Icône avant le libellé ; remplacée par un spinner pendant `loading`. */
+  icon?: React.ReactNode;
+  /** Action en cours : désactive le bouton et garde sa largeur. */
+  loading?: boolean;
+};
+
+export function Button({
+  variant = 'secondary',
+  size = 'md',
+  icon,
+  loading = false,
+  disabled,
+  className,
+  children,
+  type = 'button',
+  ...props
+}: ButtonProps) {
+  const overlaySpinner = loading && !icon;
+  return (
+    <button
+      {...props}
+      type={type}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+      className={buttonClass({ variant, size, className })}
+    >
+      {icon && (loading ? <Spinner className="size-[1em] shrink-0" /> : icon)}
+      {overlaySpinner && <Spinner className="absolute" />}
+      {overlaySpinner ? <span className="invisible inline-flex items-center gap-[inherit]">{children}</span> : children}
+    </button>
+  );
+}
+
+/** Bouton réduit à une icône : `label` est le nom accessible et l’infobulle native. */
+export function IconButton({
+  label,
+  variant = 'ghost',
+  size = 'md',
+  className,
+  children,
+  type = 'button',
+  ...props
+}: Omit<ButtonProps, 'icon' | 'loading' | 'size'> & { label: string; size?: 'sm' | 'md' }) {
+  return (
+    <button
+      {...props}
+      type={type}
+      aria-label={label}
+      title={label}
+      className={cn(
+        base,
+        variants[variant],
+        size === 'sm' ? 'size-6 rounded-sm pointer-coarse:after:-inset-2.5' : 'size-8 rounded-md pointer-coarse:after:-inset-2',
+        'pointer-coarse:after:absolute',
+        className
+      )}
+    >
+      {children}
+    </button>
+  );
+}

@@ -44,9 +44,11 @@ export const ERROR_LABELS: Record<string, string> = {
   not_found: 'Élément introuvable.',
   locked: 'Ce devis est signé et ne peut plus être modifié.',
   network: 'Connexion au serveur impossible. Réessayez.',
-  pin_unavailable: 'Ce code est déjà utilisé, choisissez-en un autre.',
-  pin_required: 'Un code à 4 chiffres est requis.',
-  invalid_pin_format: 'Le code doit comporter 4 chiffres.',
+  password_change_required: 'Choisissez un nouveau mot de passe pour continuer.',
+  password_required: 'Un mot de passe est requis.',
+  invalid_password_format: 'Le mot de passe doit comporter au moins 10 caractères.',
+  email_required: "Une adresse e-mail valide est requise : elle sert d'identifiant.",
+  email_taken: 'Cette adresse e-mail est déjà utilisée par un autre compte.',
   name_required: 'Le nom est requis.',
   invalid_rate: 'Tarif journalier invalide.',
   invalid_signature: 'Signature invalide.',
@@ -59,24 +61,27 @@ export const errorMessage = (e: unknown): string =>
 
 export interface LoginResult {
   ok: boolean;
-  error?: 'invalid_pin' | 'too_many_attempts';
+  error?: 'invalid_credentials' | 'too_many_attempts';
   token?: string;
   expiresAt?: string;
   account?: Account;
 }
 
-export const login = (pin: string) => call<LoginResult>('app_login', { p_pin: pin }, false);
+export const login = (email: string, password: string) =>
+  call<LoginResult>('app_login', { p_email: email, p_password: password }, false);
 
 export const getSession = (token: string) =>
   call<{ expiresAt: string; account: Account } | null>('app_session', { p_token: token }, false);
 
 export const logout = (token: string) => call<boolean>('app_logout', { p_token: token }, false);
 
-export const changePin = (token: string, oldPin: string, newPin: string) =>
-  call<{ ok: boolean; error?: 'invalid_format' | 'wrong_pin' | 'pin_unavailable' }>('app_change_pin', {
+export type ChangePasswordError = 'invalid_format' | 'wrong_password' | 'same_password' | 'too_many_attempts';
+
+export const changePassword = (token: string, oldPassword: string, newPassword: string) =>
+  call<{ ok: boolean; error?: ChangePasswordError }>('app_change_password', {
     p_token: token,
-    p_old: oldPin,
-    p_new: newPin,
+    p_old: oldPassword,
+    p_new: newPassword,
   });
 
 export type AccountProfile = Pick<
@@ -106,7 +111,7 @@ export const savePartner = (
   token: string,
   id: string | null,
   p: AccountProfile & { active: boolean },
-  pin: string | null
+  password: string | null
 ) =>
   call<Account>('app_partner_save', {
     p_token: token,
@@ -119,7 +124,7 @@ export const savePartner = (
     p_phone: p.phone,
     p_address: p.address,
     p_siret: p.siret,
-    p_pin: pin,
+    p_password: password,
     p_active: p.active,
   });
 

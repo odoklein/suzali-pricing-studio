@@ -1,0 +1,19 @@
+- generic [ref=e852]:
+  - generic [ref=e853]:
+    - heading "Espace sécurisé" [level=1] [ref=e858]
+    - paragraph [ref=e859]: Saisissez votre code d'accès
+  - textbox "Code d'accès à 4 chiffres" [active] [ref=e861]
+  - paragraph [ref=e867]
+  - generic [ref=e868]:
+    - button "1" [ref=e869]
+    - button "2" [ref=e870]
+    - button "3" [ref=e871]
+    - button "4" [ref=e872]
+    - button "5" [ref=e873]
+    - button "6" [ref=e874]
+    - button "7" [ref=e875]
+    - button "8" [ref=e876]
+    - button "9" [ref=e877]
+    - button "0" [ref=e879]
+    - button "Effacer" [ref=e880]
+  - paragraph [ref=e885]: Accès confidentiel et sécurisé

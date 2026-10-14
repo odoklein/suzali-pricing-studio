@@ -1,15 +1,61 @@
 import type { PageModule, PricingSettings, QuoteCalculations } from '../types/quote';
 
-export const CORE_MODULE_IDS = [
-  'page-home', 'page-story', 'page-menu', 'page-events',
-  'page-privatisation', 'page-gallery', 'page-practical', 'page-legal',
-];
-export const LOCATOR_MODULE_ID = 'module-store-locator';
+/** Identifiant de la ligne « retouches supplémentaires », ajoutée au devis client */
+export const EXTRA_RETOUCHES_ID = 'extra-retouches';
 
-/** Prix unitaire HT facturé au client (coût de production + marge commerciale) */
+/** Option à la carte, activable par le client */
+export const isOptionModule = (mod: PageModule): boolean => mod.id.startsWith('opt-');
+
+/** Coût de revient unitaire HT (grille forfaitaire ou charge × TJM) */
+export function getUnitCost(mod: PageModule, settings: PricingSettings): number {
+  return settings.mode === 'forfait' ? mod.basePrice : mod.days * settings.tjmSuzali;
+}
+
+/** Prix unitaire HT facturé au client : prix saisi par le partenaire, sinon prix d'achat (+ marge des anciens devis) */
 export function getClientUnitPrice(mod: PageModule, settings: PricingSettings): number {
-  const base = settings.mode === 'forfait' ? mod.basePrice : mod.days * settings.tjmSuzali;
-  return base * (1 + settings.partnerMarginPercent / 100);
+  if (mod.clientPrice !== undefined) return mod.clientPrice;
+  return getUnitCost(mod, settings) * (1 + settings.partnerMarginPercent / 100);
+}
+
+/** Total HT client et charge (jours) d'un groupe de livrables */
+export function sumModules(mods: PageModule[], settings: PricingSettings): { price: number; days: number } {
+  return mods.reduce(
+    (acc, m) => ({
+      price: acc.price + getClientUnitPrice(m, settings) * m.quantity,
+      days: acc.days + m.days * m.quantity,
+    }),
+    { price: 0, days: 0 }
+  );
+}
+
+/** Retouches comprises dans le forfait et retouches facturables (demandées au-delà du forfait) */
+export function retouchBilling(
+  modules: PageModule[],
+  settings: PricingSettings
+): { pageCount: number; included: number; billable: number; cost: number } {
+  const pageCount = modules.reduce(
+    (n, m) => (m.quantity > 0 && !isOptionModule(m) && m.id !== EXTRA_RETOUCHES_ID ? n + m.quantity : n),
+    0
+  );
+  const included = pageCount * settings.retouchesIncludedPerPage;
+  const billable = Math.max(0, Math.round(settings.retouchesRequested) - included);
+  return { pageCount, included, billable, cost: billable * settings.retouchUnitPrice };
+}
+
+export interface ScheduleStep {
+  label: string;
+  percent: number;
+}
+
+/** Échéancier acompte / maquettes (40 %) / solde, toujours égal à 100 % */
+export function paymentSchedule(depositPercent: number): ScheduleStep[] {
+  const deposit = Math.min(100, Math.max(0, depositPercent));
+  const middle = Math.min(40, 100 - deposit);
+  return [
+    { label: 'À la commande', percent: deposit },
+    { label: 'Validation des maquettes', percent: middle },
+    { label: 'Mise en production', percent: 100 - deposit - middle },
+  ].filter((s) => s.percent > 0);
 }
 
 /** Le n° de devis interne (SZ-…) est présenté côté client sous la marque Roeum Mak (RM-…) */
@@ -60,58 +106,57 @@ export function addDays(dateStr: string, daysToAdd: number): string {
 }
 
 /**
- * Calcul rigoureux des montants, marges et charges
+ * Calcul rigoureux des montants, marges et charges.
+ * Le délai applique la marge de sécurité à la charge brute ; les retouches facturables
+ * sont refacturées à l'identique (sans marge ni jours).
  */
 export function computeQuoteCalculations(
   modules: PageModule[],
-  settings: PricingSettings
+  settings: PricingSettings,
+  depositPercent: number = 30
 ): QuoteCalculations {
   let activeModuleCount = 0;
   let totalDevDays = 0;
-  let baseSuzaliCostHT = 0;
+  let purchaseHT = 0;
+  let sellingHT = 0;
 
   modules.forEach((mod) => {
     if (mod.quantity > 0) {
       activeModuleCount += 1;
       totalDevDays += mod.days * mod.quantity;
-
-      if (settings.mode === 'forfait') {
-        baseSuzaliCostHT += mod.basePrice * mod.quantity;
-      } else {
-        baseSuzaliCostHT += mod.days * mod.quantity * settings.tjmSuzali;
-      }
+      purchaseHT += getUnitCost(mod, settings) * mod.quantity;
+      sellingHT += getClientUnitPrice(mod, settings) * mod.quantity;
     }
   });
 
-  const totalManagementDays = settings.managementDaysFixed;
-  const totalDays = totalDevDays + totalManagementDays;
+  const retouches = retouchBilling(modules, settings);
+  const baseSuzaliCostHT = purchaseHT + retouches.cost;
+  const sellingPriceHT = sellingHT + retouches.cost;
 
-  // Calcul du prix de vente HT avant remise (majoration partenaire)
-  const marginMultiplier = 1 + (settings.partnerMarginPercent / 100);
-  const sellingPriceHT = baseSuzaliCostHT * marginMultiplier;
-  const partnerMarginAmount = sellingPriceHT - baseSuzaliCostHT;
-
-  // Application de la remise commerciale éventuelle
-  const discountAmount = sellingPriceHT * (settings.discountPercent / 100);
-  const finalSellingPriceHT = Math.max(0, sellingPriceHT - discountAmount);
+  const bufferDays = totalDevDays * (settings.bufferPercent / 100);
+  const totalDays = totalDevDays + bufferDays;
 
   // TVA et TTC
-  const vatAmount = finalSellingPriceHT * (settings.vatRate / 100);
-  const totalTTC = finalSellingPriceHT + vatAmount;
+  const vatAmount = sellingPriceHT * (settings.vatRate / 100);
+  const totalTTC = sellingPriceHT + vatAmount;
 
-  // Acompte indicatif (30% par défaut)
-  const depositAmount = totalTTC * 0.30;
+  const partnerMarginAmount = sellingPriceHT - baseSuzaliCostHT;
+  const depositAmount = totalTTC * (Math.min(100, Math.max(0, depositPercent)) / 100);
 
   return {
     activeModuleCount,
     totalDevDays: Number(totalDevDays.toFixed(2)),
-    totalManagementDays: Number(totalManagementDays.toFixed(2)),
+    bufferDays: Number(bufferDays.toFixed(2)),
     totalDays: Number(totalDays.toFixed(2)),
+    pageCount: retouches.pageCount,
+    retouchesIncluded: retouches.included,
+    retouchesBillable: retouches.billable,
+    retouchesCost: Number(retouches.cost.toFixed(2)),
     baseSuzaliCostHT: Number(baseSuzaliCostHT.toFixed(2)),
     partnerMarginAmount: Number(partnerMarginAmount.toFixed(2)),
+    netMarginAmount: Number(partnerMarginAmount.toFixed(2)),
     sellingPriceHT: Number(sellingPriceHT.toFixed(2)),
-    discountAmount: Number(discountAmount.toFixed(2)),
-    finalSellingPriceHT: Number(finalSellingPriceHT.toFixed(2)),
+    finalSellingPriceHT: Number(sellingPriceHT.toFixed(2)),
     vatAmount: Number(vatAmount.toFixed(2)),
     totalTTC: Number(totalTTC.toFixed(2)),
     depositAmount: Number(depositAmount.toFixed(2)),

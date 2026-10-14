@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ClientMetadata, ClientQuoteView as ClientQuote } from '../../types/quote';
 import { getClientQuote, updateClientOptions, signClientQuote, ApiError, errorMessage } from '../../lib/api';
 import { computeQuoteCalculations } from '../../utils/formatters';
-import { Header, getInitials } from '../layout/Header';
+import { getInitials } from '../../lib/initials';
+import { Monogram, Notice } from '../ui/display';
 import { ClientQuoteView } from './ClientQuoteView';
 import { DevisOfficialA4 } from '../pdf/DevisOfficialA4';
 
@@ -55,7 +56,14 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({ shareToken }) => {
   }, [quote]);
 
   const calculations = useMemo(
-    () => (quote ? computeQuoteCalculations(quote.snapshot.modules, quote.snapshot.settings) : null),
+    () =>
+      quote
+        ? computeQuoteCalculations(
+            quote.snapshot.modules,
+            quote.snapshot.settings,
+            quote.snapshot.metadata.depositPercentage
+          )
+        : null,
     [quote]
   );
 
@@ -99,17 +107,17 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({ shareToken }) => {
   };
 
   if (state === 'loading') {
-    return <div className="min-h-screen bg-white flex items-center justify-center text-sm text-slate-400">Chargement…</div>;
+    return <div className="grid min-h-dvh place-items-center bg-bg text-ui text-muted">Chargement…</div>;
   }
 
   if (state !== 'ready' || !quote || !metadata || !calculations) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center px-6 text-center">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">
+      <div className="grid min-h-dvh place-items-center bg-bg px-6 text-center text-ink">
+        <div className="max-w-sm">
+          <h1 className="text-h2 font-semibold tracking-title">
             {state === 'notfound' ? 'Devis indisponible' : 'Chargement impossible'}
           </h1>
-          <p className="text-sm text-slate-500 mt-2">
+          <p className="mt-2 text-body text-muted">
             {state === 'notfound'
               ? "Ce lien n'est plus valide ou le devis n'a pas encore été transmis."
               : 'Vérifiez votre connexion puis rechargez la page.'}
@@ -133,7 +141,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({ shareToken }) => {
   };
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 selection:bg-slate-200 font-sans">
+    <div className="min-h-dvh bg-bg text-ink">
       <div className="print-only">
         <DevisOfficialA4 {...a4Props} />
       </div>
@@ -144,14 +152,20 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({ shareToken }) => {
         </div>
       ) : (
         <div className="no-print">
-          <Header
-            brandName={quote.issuer.name}
-            brandSub={quote.issuer.tagline}
-            initials={getInitials(quote.issuer.name)}
-          />
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          <header className="sticky top-0 z-30 border-b border-line bg-surface/85 backdrop-blur">
+            <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 sm:px-6">
+              <Monogram label={getInitials(quote.issuer.name)} size={28} />
+              <div className="min-w-0 leading-tight">
+                <p className="truncate text-ui font-semibold">{quote.issuer.name}</p>
+                {quote.issuer.tagline && <p className="truncate text-xs text-muted">{quote.issuer.tagline}</p>}
+              </div>
+            </div>
+          </header>
+          <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:py-14">
             {notice && (
-              <p className="mb-6 text-xs text-rose-700 bg-rose-50 border border-rose-100 rounded-xl px-4 py-3">{notice}</p>
+              <Notice tone="danger" role="alert" className="mb-6">
+                {notice}
+              </Notice>
             )}
             <ClientQuoteView
               modules={quote.snapshot.modules}
@@ -165,9 +179,9 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({ shareToken }) => {
               signedAt={quote.signedAt}
             />
           </main>
-          <footer className="border-t border-slate-100 py-6 mt-12 text-center text-xs text-slate-400">
+          <footer className="mt-12 hidden border-t border-line py-6 text-center text-xs text-muted lg:block">
             {quote.issuer.name}
-            {quote.issuer.tagline ? ` - ${quote.issuer.tagline}` : ''}
+            {quote.issuer.tagline ? ` · ${quote.issuer.tagline}` : ''}
           </footer>
         </div>
       )}

@@ -7,19 +7,19 @@ import type {
   QuoteRecord,
   UserRole,
 } from '../../types/quote';
-import { initialMetadata, initialModules, initialSettings } from '../../data/initialModules';
+import { initialMetadata, initialSettings } from '../../data/initialModules';
 import { getQuote, saveQuote, errorMessage } from '../../lib/api';
 import { buildClientLink } from '../../lib/session';
-import { buildQuoteData, snapshotTotalHt } from '../../utils/quoteData';
+import { buildClientSnapshot, buildQuoteData, snapshotTotalHt } from '../../utils/quoteData';
 import { computeQuoteCalculations } from '../../utils/formatters';
-import { MetricCards } from '../configurator/MetricCards';
+import { QuoteSummary } from '../configurator/QuoteSummary';
 import { ConfigControls } from '../configurator/ConfigControls';
 import { PageTable } from '../configurator/PageTable';
-import { PartnerPricingPanel } from '../partner/PartnerPricingPanel';
 import { DevisOfficialA4 } from '../pdf/DevisOfficialA4';
-import { BieresGeorgesExplainerModal } from '../case-study/BieresGeorgesExplainerModal';
 import { StatusBadge } from './Dashboard';
-import { ArrowLeft, Printer, Mail, Eye, Sparkles } from 'lucide-react';
+import { Button, IconButton, Spinner } from '../ui/button';
+import { Kbd, Notice } from '../ui/display';
+import { ArrowLeft, Check, CircleAlert, Eye, Mail, Printer } from 'lucide-react';
 
 interface QuoteEditorProps {
   token: string;
@@ -40,9 +40,6 @@ const SAVE_LABELS: Record<SaveState, string> = {
   conflict: 'Conflit',
 };
 
-const secondaryBtn =
-  'inline-flex items-center gap-1.5 px-3.5 py-2 bg-white text-slate-700 hover:text-slate-900 border border-slate-100 shadow-sm hover:bg-slate-50 font-medium text-xs rounded-xl transition-all disabled:opacity-50';
-
 export const QuoteEditor: React.FC<QuoteEditorProps> = ({ token, account, quoteId, onBack, flushRef }) => {
   const [record, setRecord] = useState<QuoteRecord | null>(null);
   const [modules, setModules] = useState<PageModule[]>([]);
@@ -52,7 +49,6 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({ token, account, quoteI
   const [saveState, setSaveState] = useState<SaveState>('saved');
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showA4, setShowA4] = useState(false);
-  const [showCaseStudy, setShowCaseStudy] = useState(false);
 
   const isAdmin = account.role === 'admin';
   const uiRole: UserRole = isAdmin ? 'admin' : 'partner';
@@ -74,7 +70,7 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({ token, account, quoteI
       const rec = await getQuote(token, quoteId);
       const md: ClientMetadata = { ...initialMetadata, ...rec.data.metadata, quoteNumber: rec.reference };
       const st: PricingSettings = { ...initialSettings, ...rec.data.settings };
-      const mods = rec.data.modules?.length ? rec.data.modules : initialModules;
+      const mods = rec.data.modules ?? [];
       recordRef.current = rec;
       lastSaved.current = JSON.stringify({ modules: mods, settings: st, metadata: md });
       setRecord(rec);
@@ -174,7 +170,23 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({ token, account, quoteI
     return () => window.removeEventListener('beforeunload', warn);
   }, [saveState]);
 
-  const calculations = useMemo(() => computeQuoteCalculations(modules, settings), [modules, settings]);
+  const calculations = useMemo(
+    () => computeQuoteCalculations(modules, settings, metadata.depositPercentage),
+    [modules, settings, metadata.depositPercentage]
+  );
+
+  // Ctrl/Cmd + S : enregistrement immédiat plutôt que le dialogue du navigateur
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (timer.current) clearTimeout(timer.current);
+        void save();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [save]);
 
   const handleBack = async () => {
     if (timer.current) clearTimeout(timer.current);
@@ -234,24 +246,24 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({ token, account, quoteI
     ]);
   };
 
-  const handleApplyBase642 = () => {
-    setModules(initialModules.map((m) => ({ ...m })));
-    setSettings({ ...initialSettings });
-  };
-
   if (loadError) {
     return (
-      <div className="text-center py-24">
-        <p className="text-sm text-slate-600 mb-4">{loadError}</p>
-        <button type="button" onClick={onBack} className={secondaryBtn}>
+      <div className="py-24 text-center">
+        <p className="mb-4 text-body text-muted">{loadError}</p>
+        <Button onClick={onBack} icon={<ArrowLeft className="size-4" aria-hidden="true" />}>
           Retour aux devis
-        </button>
+        </Button>
       </div>
     );
   }
 
   if (!record) {
-    return <p className="text-center py-24 text-sm text-slate-400">Chargement du devis…</p>;
+    return (
+      <p className="flex items-center justify-center gap-2 py-24 text-ui text-muted">
+        <Spinner />
+        Chargement du devis…
+      </p>
+    );
   }
 
   const locked = record.status === 'signed';
@@ -259,7 +271,15 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({ token, account, quoteI
     locked && record.signedBy && record.signedAt
       ? { by: record.signedBy, at: record.signedAt, signature: record.signature }
       : null;
-  const a4Props = { modules, metadata, settings, calculations, signed: signedInfo };
+  // Le devis imprimé est exactement celui du client : prix de vente, jamais le prix d'achat
+  const clientView = buildClientSnapshot(modules, settings, metadata);
+  const a4Props = {
+    modules: clientView.modules,
+    metadata,
+    settings: clientView.settings,
+    calculations: computeQuoteCalculations(clientView.modules, clientView.settings, metadata.depositPercentage),
+    signed: signedInfo,
+  };
 
   return (
     <>
@@ -268,121 +288,122 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({ token, account, quoteI
       </div>
 
       {showA4 ? (
-        <div className="no-print fixed inset-0 z-40 overflow-y-auto bg-white">
+        <div className="no-print fixed inset-0 z-50 overflow-y-auto bg-chrome">
           <DevisOfficialA4 {...a4Props} onClose={() => setShowA4(false)} />
         </div>
       ) : null}
 
       <div className="no-print">
-        {/* Top bar */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
-          <div className="flex items-center gap-4 min-w-0">
-            <button type="button" onClick={handleBack} className={secondaryBtn}>
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Devis</span>
-            </button>
+        <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <IconButton label="Retour aux devis" variant="secondary" onClick={handleBack} className="mt-0.5">
+              <ArrowLeft className="size-4" />
+            </IconButton>
             <div className="min-w-0">
-              <p className="font-mono text-xs text-slate-400">{record.reference}</p>
-              <h1 className="text-lg font-semibold tracking-tight text-slate-900 truncate">
-                {metadata.projectName || 'Sans titre'}
-              </h1>
+              <p className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                <span className="font-mono">{record.reference}</span>
+                <StatusBadge status={record.status} />
+                <span
+                  aria-live="polite"
+                  className={`inline-flex items-center gap-1 ${
+                    saveState === 'error' || saveState === 'conflict' ? 'text-danger-text' : 'text-muted'
+                  }`}
+                >
+                  {saveState === 'saving' && <Spinner className="size-3" />}
+                  {saveState === 'saved' && <Check aria-hidden="true" className="size-3.5 text-done" />}
+                  {(saveState === 'error' || saveState === 'conflict') && <CircleAlert aria-hidden="true" className="size-3.5" />}
+                  {SAVE_LABELS[saveState]}
+                  {saveState === 'dirty' && (
+                    <span className="hidden items-center gap-1 sm:inline-flex">
+                      · <Kbd>Ctrl S</Kbd>
+                    </span>
+                  )}
+                </span>
+              </p>
+              <h1 className="mt-1 truncate text-h1 font-semibold tracking-tight">{metadata.projectName || 'Sans titre'}</h1>
+              {metadata.clientCompany && <p className="text-body text-muted">{metadata.clientCompany}</p>}
             </div>
-            <StatusBadge status={record.status} />
-            <span
-              className={`text-xs ${
-                saveState === 'error' || saveState === 'conflict' ? 'text-rose-600' : 'text-slate-400'
-              }`}
-              aria-live="polite"
-            >
-              {SAVE_LABELS[saveState]}
-            </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {isAdmin && (
-              <button type="button" onClick={() => setShowCaseStudy(true)} className={secondaryBtn}>
-                <Sparkles className="w-3.5 h-3.5 text-slate-500" />
-                <span>Audit dérives</span>
-              </button>
-            )}
-            <button type="button" onClick={() => setShowA4(true)} className={secondaryBtn}>
-              <Eye className="w-3.5 h-3.5 text-slate-500" />
-              <span>Aperçu A4</span>
-            </button>
-            <button type="button" onClick={() => window.print()} className={secondaryBtn}>
-              <Printer className="w-3.5 h-3.5 text-slate-500" />
-              <span>PDF</span>
-            </button>
-            <button
-              type="button"
+            <Button icon={<Eye className="size-4" aria-hidden="true" />} onClick={() => setShowA4(true)}>
+              Aperçu A4
+            </Button>
+            <Button icon={<Printer className="size-4" aria-hidden="true" />} onClick={() => window.print()}>
+              PDF
+            </Button>
+            <Button
+              icon={<Mail className="size-4" aria-hidden="true" />}
               onClick={handleMail}
               disabled={!metadata.clientEmail}
               title={metadata.clientEmail ? undefined : "Renseignez l'e-mail du client dans les informations du devis"}
-              className={secondaryBtn}
             >
-              <Mail className="w-3.5 h-3.5 text-slate-500" />
-              <span>Envoyer par e-mail</span>
-            </button>
+              Envoyer par e-mail
+            </Button>
           </div>
+        </header>
+
+        <div className="space-y-3 empty:hidden mb-6">
+          {saveState === 'conflict' && (
+            <Notice
+              tone="waiting"
+              role="alert"
+              action={
+                <Button size="sm" onClick={() => void load()}>
+                  Recharger
+                </Button>
+              }
+            >
+              Ce devis a été modifié ailleurs (par votre client par exemple). Rechargez pour récupérer la dernière version.
+            </Notice>
+          )}
+          {saveError && saveState === 'error' && (
+            <Notice tone="danger" role="alert">
+              {saveError}
+            </Notice>
+          )}
+          {locked && (
+            <Notice tone="done">Devis signé par {record.signedBy} : il est verrouillé et ne peut plus être modifié.</Notice>
+          )}
         </div>
 
-        {saveState === 'conflict' && (
-          <div className="mb-6 flex items-center justify-between gap-4 text-xs text-amber-900 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
-            <span>Ce devis a été modifié ailleurs (par votre client par exemple). Rechargez pour récupérer la dernière version.</span>
-            <button type="button" onClick={() => void load()} className="font-semibold underline underline-offset-4">
-              Recharger
-            </button>
+        <fieldset disabled={locked} className="m-0 min-w-0 border-0 p-0">
+          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="order-2 min-w-0 space-y-6 lg:order-1">
+              <ConfigControls
+                metadata={metadata}
+                onUpdateMetadata={(patch) => setMetadata((m) => ({ ...m, ...patch }))}
+              />
+
+              <PageTable
+                modules={modules}
+                currentRole={uiRole}
+                settings={settings}
+                onUpdateQuantity={(id, quantity) => updateModule(id, { quantity })}
+                onUpdateIncluded={(id, includedDetails) => updateModule(id, { includedDetails })}
+                onUpdateBasePrice={(id, basePrice) => updateModule(id, { basePrice })}
+                onUpdateClientPrice={(id, clientPrice) => updateModule(id, { clientPrice })}
+                onUpdateDays={(id, days) => updateModule(id, { days })}
+                onAddCustomModule={handleAddCustomModule}
+                onDeleteModule={(id) => setModules((prev) => prev.filter((m) => m.id !== id))}
+              />
+            </div>
+
+            <aside className="order-1 lg:sticky lg:top-6 lg:order-2">
+              <QuoteSummary
+                currentRole={uiRole}
+                canEditRate={canEditRate}
+                accountDailyRate={account.dailyRate}
+                settings={settings}
+                calculations={calculations}
+                metadata={metadata}
+                onUpdateSettings={(patch) => setSettings((s) => ({ ...s, ...patch }))}
+                onShare={handleShare}
+              />
+            </aside>
           </div>
-        )}
-        {saveError && saveState === 'error' && (
-          <p className="mb-6 text-xs text-rose-700 bg-rose-50 border border-rose-100 rounded-xl px-4 py-3">{saveError}</p>
-        )}
-        {locked && (
-          <p className="mb-6 text-xs text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
-            Devis signé par {record.signedBy} : il est verrouillé et ne peut plus être modifié.
-          </p>
-        )}
-
-        <fieldset disabled={locked} className="min-w-0 border-0 p-0 m-0">
-          <PartnerPricingPanel
-            settings={settings}
-            calculations={calculations}
-            metadata={metadata}
-            onUpdateSettings={(patch) => setSettings((s) => ({ ...s, ...patch }))}
-            onShare={handleShare}
-          />
-
-          <MetricCards currentRole={uiRole} calculations={calculations} settings={settings} />
-
-          <ConfigControls
-            currentRole={uiRole}
-            canEditRate={canEditRate}
-            settings={settings}
-            metadata={metadata}
-            onUpdateSettings={(patch) => setSettings((s) => ({ ...s, ...patch }))}
-            onUpdateMetadata={(patch) => setMetadata((m) => ({ ...m, ...patch }))}
-          />
-
-          <PageTable
-            modules={modules}
-            currentRole={uiRole}
-            settings={settings}
-            onUpdateQuantity={(id, quantity) => updateModule(id, { quantity })}
-            onUpdateIncluded={(id, includedDetails) => updateModule(id, { includedDetails })}
-            onUpdateBasePrice={(id, basePrice) => updateModule(id, { basePrice })}
-            onUpdateDays={(id, days) => updateModule(id, { days })}
-            onAddCustomModule={handleAddCustomModule}
-            onDeleteModule={(id) => setModules((prev) => prev.filter((m) => m.id !== id))}
-          />
         </fieldset>
       </div>
-
-      {showCaseStudy && isAdmin && (
-        <BieresGeorgesExplainerModal
-          onClose={() => setShowCaseStudy(false)}
-          onApplyBase642={handleApplyBase642}
-        />
-      )}
     </>
   );
 };

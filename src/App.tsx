@@ -3,6 +3,7 @@ import type { Account } from './types/quote';
 import { login, getSession, logout, onUnauthorized } from './lib/api';
 import { loadToken, saveToken, clearToken, readClientToken, clearHash } from './lib/session';
 import { PortalGate } from './components/portal/PortalGate';
+import { PasswordChangeGate } from './components/portal/PasswordChangeGate';
 import { ClientPortal } from './components/client/ClientPortal';
 import { StaffApp } from './components/staff/StaffApp';
 
@@ -77,10 +78,10 @@ export const App: React.FC = () => {
     return () => document.removeEventListener('visibilitychange', check);
   }, [session, endSession]);
 
-  const handleLogin = async (pin: string) => {
+  const handleLogin = async (email: string, password: string) => {
     try {
-      const res = await login(pin);
-      if (!res.ok || !res.token || !res.account) return res.error ?? 'invalid_pin';
+      const res = await login(email, password);
+      if (!res.ok || !res.token || !res.account) return res.error ?? 'invalid_credentials';
       saveToken(res.token);
       clearHash();
       setNotice(null);
@@ -114,6 +115,24 @@ export const App: React.FC = () => {
 
   if (!session) {
     return <PortalGate onSubmit={handleLogin} notice={notice} />;
+  }
+
+  // Mot de passe provisoire : aucun accès à l'application avant son remplacement
+  if (session.account.mustChangePassword) {
+    return (
+      <PasswordChangeGate
+        token={session.token}
+        onLogout={handleLogout}
+        onDone={() =>
+          getSession(session.token)
+            .then((res) => {
+              if (res) setSession({ token: session.token, account: res.account });
+              else endSession('Votre session a expiré. Veuillez vous reconnecter.');
+            })
+            .catch(() => endSession('Connexion impossible. Veuillez vous reconnecter.'))
+        }
+      />
+    );
   }
 
   return (

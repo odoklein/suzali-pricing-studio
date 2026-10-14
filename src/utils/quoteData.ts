@@ -7,7 +7,7 @@ import type {
   QuoteData,
 } from '../types/quote';
 import { initialMetadata, initialModules, initialSettings } from '../data/initialModules';
-import { computeQuoteCalculations, getClientUnitPrice } from './formatters';
+import { computeQuoteCalculations, getClientUnitPrice, retouchBilling, isOptionModule, EXTRA_RETOUCHES_ID } from './formatters';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -20,20 +20,42 @@ export function buildClientSnapshot(
   settings: PricingSettings,
   metadata: ClientMetadata
 ): ClientSnapshot {
+  const snapshotModules: PageModule[] = modules.map((m) => ({
+    ...m,
+    basePrice: round2(getClientUnitPrice(m, settings)),
+    clientPrice: undefined,
+    optional: isOptionModule(m),
+    minQuantity: undefined,
+  }));
+
+  // Les retouches facturables deviennent une ligne du devis client (non optionnelle : le client ne la modifie pas)
+  const retouches = retouchBilling(modules, settings);
+  if (retouches.billable > 0) {
+    snapshotModules.push({
+      id: EXTRA_RETOUCHES_ID,
+      name: 'Retouches supplémentaires',
+      category: 'content',
+      description: `Retouches demandées au-delà des ${retouches.included} incluses (${settings.retouchesIncludedPerPage} par page).`,
+      includedDetails: '',
+      basePrice: settings.retouchUnitPrice,
+      days: 0,
+      quantity: retouches.billable,
+      optional: false,
+    });
+  }
+
   return {
-    modules: modules.map((m) => ({
-      ...m,
-      basePrice: round2(getClientUnitPrice(m, settings)),
-      optional: m.id.startsWith('opt-'),
-      minQuantity: undefined,
-    })),
+    modules: snapshotModules,
     settings: {
       mode: 'forfait',
       tjmSuzali: 0,
       partnerMarginPercent: 0,
-      managementDaysFixed: settings.managementDaysFixed,
+      bufferPercent: settings.bufferPercent,
+      retouchesIncludedPerPage: settings.retouchesIncludedPerPage,
+      retouchUnitPrice: settings.retouchUnitPrice,
+      retouchesRequested: 0,
       vatRate: settings.vatRate,
-      discountPercent: settings.discountPercent,
+      discountPercent: 0,
     },
     metadata,
   };
@@ -64,19 +86,16 @@ export function issuerMetadata(account: Account): Partial<ClientMetadata> {
   };
 }
 
-/** Données initiales d'un nouveau devis, au tarif journalier du compte */
+/** Données initiales d'un nouveau devis : grille de référence en forfait, tarif journalier du compte conservé pour le mode TJM */
 export function newQuoteData(account: Account): QuoteData {
   const modules = initialModules.map((m) => ({ ...m }));
-  const settings: PricingSettings = {
-    ...initialSettings,
-    mode: 'tjm',
-    tjmSuzali: account.dailyRate,
-    partnerMarginPercent: 0,
-  };
+  const settings: PricingSettings = { ...initialSettings, tjmSuzali: account.dailyRate };
   const metadata: ClientMetadata = {
     ...initialMetadata,
     ...issuerMetadata(account),
     projectName: 'Nouveau projet',
+    quoteNumber: '',
+    notes: '',
     clientCompany: '',
     clientContact: '',
     clientEmail: '',

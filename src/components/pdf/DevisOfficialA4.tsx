@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import type { PageModule, ClientMetadata, PricingSettings, QuoteCalculations } from '../../types/quote';
-import { formatEuros, formatFrenchDate, addDays, getClientUnitPrice, displayQuoteNumber, CORE_MODULE_IDS, LOCATOR_MODULE_ID } from '../../utils/formatters';
-import { getInitials } from '../layout/Header';
+import { formatEuros, formatDays, formatFrenchDate, formatPercent, addDays, getClientUnitPrice, displayQuoteNumber, paymentSchedule, EXTRA_RETOUCHES_ID } from '../../utils/formatters';
+import { getInitials } from '../../lib/initials';
 import { 
   FileText, 
   Printer, 
@@ -46,11 +46,10 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
   // Filter active modules
   const activeModules = modules.filter((m) => m.quantity > 0);
 
-  // Périmètre contractuel verrouillé : 8 pages + Store Locator
-  const lockedModules = activeModules.filter(
-    (m) => CORE_MODULE_IDS.includes(m.id) || m.id === LOCATOR_MODULE_ID
-  );
-  const lockedPageCount = lockedModules.filter((m) => CORE_MODULE_IDS.includes(m.id)).length;
+  // Périmètre contractuel verrouillé : livrables du socle, hors options et retouches facturées
+  const lockedModules = activeModules.filter((m) => !m.optional && m.id !== EXTRA_RETOUCHES_ID);
+  const lockedUnitCount = lockedModules.reduce((n, m) => n + m.quantity, 0);
+  const includedRetouches = lockedUnitCount * settings.retouchesIncludedPerPage;
   const lockedScopeTotal = lockedModules.reduce(
     (sum, m) => sum + getClientUnitPrice(m, settings) * m.quantity,
     0
@@ -70,6 +69,18 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
     ctx.lineCap = 'round';
   }, []);
 
+  const pointerPosition = (
+    canvas: HTMLCanvasElement,
+    e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
+  ) => {
+    const rect = canvas.getBoundingClientRect();
+    const point = 'touches' in e ? e.touches[0] : e;
+    return {
+      x: ((point.clientX - rect.left) * canvas.width) / rect.width,
+      y: ((point.clientY - rect.top) * canvas.height) / rect.height,
+    };
+  };
+
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -79,9 +90,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
     setIsDrawing(true);
     if (!hasSigned) setSignedAt(new Date());
     setHasSigned(true);
-    const rect = canvas.getBoundingClientRect();
-    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+    const { x, y } = pointerPosition(canvas, e);
     ctx.beginPath();
     ctx.moveTo(x, y);
   };
@@ -93,9 +102,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+    const { x, y } = pointerPosition(canvas, e);
     ctx.lineTo(x, y);
     ctx.stroke();
   };
@@ -144,7 +151,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
       {/* Top action toolbar (Hidden when printing) */}
       <div className="max-w-4xl mx-auto mb-6 flex items-center justify-between no-print bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
         <div className="flex items-center space-x-2">
-          <FileText className="w-5 h-5 text-slate-800" />
+          <FileText className="w-5 h-5 text-slate-800" aria-hidden="true" />
           <h2 className="font-bold text-slate-900 text-sm md:text-base">
             Prévisualisation du Devis Proforma Officiel A4
           </h2>
@@ -152,6 +159,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
         <div className="flex items-center space-x-2">
           {onClose && (
             <button
+              type="button"
               onClick={onClose}
               className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100"
             >
@@ -159,10 +167,11 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
             </button>
           )}
           <button
+            type="button"
             onClick={handlePrint}
-            className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 text-white hover:bg-slate-800 shadow-xs transition-all"
+            className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 text-white hover:bg-slate-700 shadow-xs transition-all"
           >
-            <Printer className="w-4 h-4 text-emerald-300" />
+            <Printer className="w-4 h-4 text-emerald-300" aria-hidden="true" />
             <span>Imprimer / Télécharger en PDF</span>
           </button>
         </div>
@@ -232,7 +241,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
           </div>
           <div>
             <span className="block text-[10px] uppercase font-semibold text-slate-400">Délai Estimé de Réalisation</span>
-            <span className="font-mono font-bold text-slate-800">{calculations.totalDays} jours ouvrés</span>
+            <span className="font-mono font-bold text-slate-800">{formatDays(calculations.totalDays)} ouvrés</span>
           </div>
         </div>
 
@@ -253,6 +262,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
               <tr className="bg-slate-900 text-white font-semibold uppercase text-[10px] tracking-wider">
                 <th className="py-2.5 px-3 w-10 text-center">Qté</th>
                 <th className="py-2.5 px-3">Description & Spécification des Livrables Inclus</th>
+                <th className="py-2.5 px-3 w-20 text-right">Jours</th>
                 <th className="py-2.5 px-3 w-28 text-right">Prix Unitaire HT</th>
                 <th className="py-2.5 px-3 w-28 text-right">Total HT</th>
               </tr>
@@ -279,6 +289,9 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
                         {mod.includedDetails}
                       </div>
                     </td>
+                    <td className="py-3 px-3 text-right font-mono text-slate-700 align-top whitespace-nowrap">
+                      {mod.days > 0 ? formatDays(mod.days * mod.quantity) : '—'}
+                    </td>
                     <td className="py-3 px-3 text-right font-mono text-slate-700 align-top">
                       {formatEuros(unitPrice)}
                     </td>
@@ -300,9 +313,14 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
               Modalités de Paiement & Échéancier
             </span>
             <ul className="list-disc list-inside space-y-1">
-              <li><strong>{metadata.depositPercentage}% à la commande</strong> ({formatEuros(calculations.totalTTC * (metadata.depositPercentage / 100))} TTC) pour réservation du sprint.</li>
-              <li><strong>40% à la validation des maquettes</strong> et livraison de la version de recettage (V1).</li>
-              <li><strong>Solde ({100 - metadata.depositPercentage - 40}%) à la mise en production</strong> et livraison des accès de gestion.</li>
+              {paymentSchedule(metadata.depositPercentage).map((step) => (
+                <li key={step.label}>
+                  <strong>
+                    {step.percent}% — {step.label.toLowerCase()}
+                  </strong>{' '}
+                  ({formatEuros((calculations.totalTTC * step.percent) / 100)} TTC)
+                </li>
+              ))}
             </ul>
             <div className="pt-2 text-[10px] text-slate-500">
               Règlement par virement bancaire sous 30 jours date d'émission.
@@ -312,16 +330,9 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
           {/* Financial summary numbers */}
           <div className="w-full sm:w-72 bg-slate-900 text-white p-4 rounded-xl space-y-2">
             <div className="flex justify-between text-xs text-slate-300">
-              <span>Sous-Total HT</span>
-              <span className="font-mono">{formatEuros(calculations.sellingPriceHT)}</span>
+              <span>Délai estimé</span>
+              <span className="font-mono">{formatDays(calculations.totalDays)} ouvrés</span>
             </div>
-
-            {calculations.discountAmount > 0 && (
-              <div className="flex justify-between text-xs text-rose-300">
-                <span>Remise Commerciale ({settings.discountPercent}%)</span>
-                <span className="font-mono">-{formatEuros(calculations.discountAmount)}</span>
-              </div>
-            )}
 
             <div className="flex justify-between text-xs text-slate-300 pt-1 border-t border-slate-800">
               <span>Total Net HT</span>
@@ -329,7 +340,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
             </div>
 
             <div className="flex justify-between text-xs text-slate-300">
-              <span>TVA (20,00 %)</span>
+              <span>TVA ({formatPercent(settings.vatRate)})</span>
               <span className="font-mono">{formatEuros(calculations.vatAmount)}</span>
             </div>
 
@@ -340,7 +351,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
 
             <div className="pt-2 text-[11px] text-emerald-200 border-t border-slate-800 flex justify-between">
               <span>Acompte Requis ({metadata.depositPercentage}%) :</span>
-              <span className="font-mono font-bold">{formatEuros(calculations.totalTTC * (metadata.depositPercentage / 100))}</span>
+              <span className="font-mono font-bold">{formatEuros(calculations.depositAmount)}</span>
             </div>
           </div>
         </div>
@@ -349,13 +360,13 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
         <div className="mb-6 p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-[10px] text-slate-500 leading-snug space-y-1 page-break-inside-avoid">
           <strong className="text-slate-700 block">Conditions Générales d'Exécution & Cadre Contractuel :</strong>
           <p>
-            1. <strong>Périmètre & Révisions</strong> : La prestation comprend deux (2) vagues d'ajustements/retours sur les maquettes et livrables inclus listés ci-dessus. Toute demande de révision supplémentaire, refonte de charte graphique, intégration de fonctionnalités non spécifiées ou retards dus à l’absence de fourniture des contenus entraînera l'émission d'un avenant tarifaire au taux journalier standard (TJM).
+            1. <strong>Périmètre & Révisions</strong> : La prestation comprend {settings.retouchesIncludedPerPage} retouches par page, soit {includedRetouches} retouches au total sur les livrables listés ci-dessus. Toute retouche supplémentaire est facturée {formatEuros(settings.retouchUnitPrice, false)} l'unité. Toute refonte de charte graphique, intégration de fonctionnalités non spécifiées ou retard dû à l’absence de fourniture des contenus entraînera l'émission d'un avenant tarifaire.
           </p>
           <p>
             2. <strong>Hébergement & Propriété Intellectuelle</strong> : Le code source est la propriété pleine et entière du client final après règlement intégral de l'ensemble des factures émises.
           </p>
           <p>
-            3. <strong>Livrables verrouillés</strong> : le périmètre ferme du présent devis est limité à {lockedPageCount} pages + 1 module Store Locator, soit {formatEuros(lockedScopeTotal)} HT, dans les termes exacts des descriptifs « Inclus au devis » ci-dessus. Tout élément non listé est hors périmètre et fera l'objet d'un avenant signé avant réalisation.
+            3. <strong>Livrables verrouillés</strong> : le périmètre ferme du présent devis est limité à {lockedUnitCount} livrable{lockedUnitCount > 1 ? 's' : ''}, soit {formatEuros(lockedScopeTotal)} HT, dans les termes exacts des descriptifs « Inclus au devis » ci-dessus. Tout élément non listé est hors périmètre et fera l'objet d'un avenant signé avant réalisation.
           </p>
           <p>
             4. <strong>Pénalités de retard</strong> : Conformément aux articles L. 441-10 et D. 441-5 du Code de commerce, tout retard de règlement donne lieu de plein droit à des pénalités au taux légal en vigueur majoré de 10 points, ainsi qu’à une indemnité forfaitaire pour frais de recouvrement de 40 €.
@@ -366,7 +377,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
         <div className="border-2 border-slate-300 rounded-xl p-5 bg-white page-break-inside-avoid">
           <div className="flex justify-between items-center mb-3">
             <span className="font-bold text-xs uppercase tracking-wider text-slate-800 flex items-center space-x-1.5">
-              <CheckSquare className="w-4 h-4 text-slate-800" />
+              <CheckSquare className="w-4 h-4 text-slate-800" aria-hidden="true" />
               <span>Bon pour Accord & Ordre d'Exécution</span>
             </span>
             <span className="text-[11px] text-slate-500">
@@ -377,9 +388,11 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2 text-xs">
               <div>
-                <label className="block text-slate-500 text-[11px] mb-1">Nom et prénom du signataire habilité :</label>
+                <label htmlFor="signer-name" className="block text-slate-500 text-[11px] mb-1">Nom et prénom du signataire habilité :</label>
                 <input
+                  id="signer-name"
                   type="text"
+                  autoComplete="name"
                   value={signerName}
                   disabled={!!signed}
                   onChange={(e) => setSignerName(e.target.value)}
@@ -387,8 +400,9 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
                 />
               </div>
               <div>
-                <label className="block text-slate-500 text-[11px] mb-1">Fait le :</label>
+                <label htmlFor="signer-date" className="block text-slate-500 text-[11px] mb-1">Fait le :</label>
                 <input
+                  id="signer-date"
                   type="date"
                   value={signedDate}
                   disabled={!!signed}
@@ -410,7 +424,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
                   )}
                 </div>
                 <div className="mt-1 flex items-center space-x-1 text-[10px] text-emerald-700 font-medium">
-                  <CheckCircle className="w-3 h-3 text-emerald-600" />
+                  <CheckCircle className="w-3 h-3 text-emerald-600" aria-hidden="true" />
                   <span>
                     Signé par {signed.by} le {formatFrenchDate(new Date(signed.at))} à{' '}
                     <span className="font-mono">{new Date(signed.at).toLocaleTimeString('fr-FR')}</span>
@@ -428,7 +442,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
                     onClick={clearSignature}
                     className="text-rose-600 hover:text-rose-800 flex items-center space-x-1 no-print"
                   >
-                    <Eraser className="w-3 h-3" />
+                    <Eraser className="w-3 h-3" aria-hidden="true" />
                     <span>Effacer</span>
                   </button>
                 )}
@@ -445,6 +459,8 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
                   onTouchStart={startDrawing}
                   onTouchMove={draw}
                   onTouchEnd={stopDrawing}
+                  role="img"
+                  aria-label="Zone de signature manuscrite"
                   className="w-full h-[110px] cursor-crosshair touch-none"
                 />
                 {!hasSigned && (
@@ -463,14 +479,14 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
                     disabled={isSavingSignature}
                     className="py-1.5 px-3 bg-slate-800 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs flex items-center space-x-1.5 transition-all shadow-xs"
                   >
-                    <Send className="w-3 h-3" />
+                    <Send className="w-3 h-3" aria-hidden="true" />
                     <span>{isSavingSignature ? 'Enregistrement...' : 'Valider & Transmettre la Signature'}</span>
                   </button>
                 )}
 
                 {signatureSavedInDb && (
                   <div className="flex items-center space-x-1 text-xs text-slate-800 font-bold bg-slate-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-                    <CloudCheck className="w-4 h-4 text-emerald-600" />
+                    <CloudCheck className="w-4 h-4 text-emerald-600" aria-hidden="true" />
                     <span>Signature enregistrée</span>
                   </div>
                 )}
@@ -478,7 +494,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
 
               {hasSigned && (
                 <div className="mt-1 flex items-center space-x-1 text-[10px] text-emerald-700 font-medium">
-                  <CheckCircle className="w-3 h-3 text-emerald-600" />
+                  <CheckCircle className="w-3 h-3 text-emerald-600" aria-hidden="true" />
                   <span>
                     Signé électroniquement le {signedAt ? formatFrenchDate(signedAt) : ''} à{' '}
                     <span className="font-mono">
@@ -488,7 +504,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
                 </div>
               )}
             </div>
-              {signError && <p className="mt-1 text-[11px] text-rose-600 no-print">{signError}</p>}
+              {signError && <p role="alert" className="mt-1 text-[11px] text-rose-700 no-print">{signError}</p>}
               {!onSign && (
                 <p className="mt-2 text-[11px] text-slate-400 italic no-print">
                   Aperçu : la signature est réservée au client depuis son lien sécurisé.

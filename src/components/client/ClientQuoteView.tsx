@@ -1,14 +1,19 @@
 import React from 'react';
+import { ArrowRight, Check, Lock } from 'lucide-react';
 import type { PageModule, ClientMetadata, PricingSettings, QuoteCalculations } from '../../types/quote';
 import {
-  formatEuros,
+  addDays,
   formatDays,
-  getClientUnitPrice,
-  CORE_MODULE_IDS,
-  LOCATOR_MODULE_ID,
+  formatEuros,
   formatFrenchDate,
+  formatPercent,
+  getClientUnitPrice,
+  paymentSchedule,
+  sumModules,
 } from '../../utils/formatters';
-import { Check, ArrowRight, Lock } from 'lucide-react';
+import { cn } from '../../lib/cn';
+import { Button } from '../ui/button';
+import { Badge, Card } from '../ui/display';
 
 interface ClientQuoteViewProps {
   modules: PageModule[];
@@ -22,6 +27,8 @@ interface ClientQuoteViewProps {
   /** Devis signé : options figées */
   signedAt?: string | null;
 }
+
+const sectionTitle = 'mb-3 flex items-baseline justify-between gap-3 text-xs font-semibold text-muted';
 
 export const ClientQuoteView: React.FC<ClientQuoteViewProps> = ({
   modules,
@@ -37,85 +44,93 @@ export const ClientQuoteView: React.FC<ClientQuoteViewProps> = ({
   const locked = !!signedAt;
   const fixedModules = modules.filter((m) => !m.optional && m.quantity > 0);
   const options = modules.filter((m) => m.optional);
+  const activeOptions = options.filter((m) => m.quantity > 0);
 
-  const coreCount = fixedModules.filter((m) => CORE_MODULE_IDS.includes(m.id)).length;
-  const hasLocator = fixedModules.some((m) => m.id === LOCATOR_MODULE_ID);
-  const scopeTitle =
-    coreCount > 0
-      ? `${coreCount} pages${hasLocator ? ' + Store Locator' : ''}`
-      : `${fixedModules.length} prestation${fixedModules.length > 1 ? 's' : ''}`;
-
-  const scopeTotal = fixedModules.reduce(
-    (sum, m) => sum + getClientUnitPrice(m, settings) * m.quantity,
-    0
-  );
+  const scope = sumModules(fixedModules, settings);
+  const optionsTotal = sumModules(activeOptions, settings).price;
   const firstName = metadata.clientContact.split(' ')[0];
+  const schedule = paymentSchedule(metadata.depositPercentage);
+  const validUntil = formatFrenchDate(addDays(metadata.issueDate, metadata.validityDays));
 
-  const deposit = metadata.depositPercentage;
-  const middle = 40;
-  const balance = Math.max(0, 100 - deposit - middle);
-  const schedule = [
-    { label: 'À la commande', percent: deposit },
-    { label: 'Validation des maquettes', percent: middle },
-    { label: 'Mise en production', percent: balance },
-  ];
+  const cta = locked ? 'Voir le devis signé' : 'Consulter et signer le devis';
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-10 items-start">
-
-      {/* LEFT: cart */}
-      <div className="space-y-10">
-        <div>
-          <p className="text-xs font-mono text-slate-400 mb-2">
-            {reference}
+    <div className="grid items-start gap-x-10 gap-y-8 pb-24 lg:grid-cols-[minmax(0,1fr)_380px] lg:pb-0">
+      {/* Proposition */}
+      <div className="min-w-0 space-y-10">
+        <header>
+          <p className="flex flex-wrap items-center gap-2 text-xs text-muted">
+            <span className="font-mono">{reference}</span>
+            {locked ? <Badge tone="done">Signé le {formatFrenchDate(signedAt!)}</Badge> : <Badge tone="waiting">À valider</Badge>}
           </p>
-          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">
-            {firstName ? `Bonjour ${firstName},` : 'Bonjour,'}
-          </h2>
-          <p className="text-sm text-slate-500 mt-3 leading-relaxed max-w-xl">
-            Voici votre proposition pour <span className="text-slate-800">{metadata.projectName}</span>.
-            {locked
-              ? `Devis signé le ${formatFrenchDate(signedAt!)}. Merci pour votre confiance.`
-              : 'Activez ou retirez les options : le récapitulatif se met à jour instantanément.'}
+          <h1 className="mt-4 text-balance text-[32px] font-semibold leading-[1.1] tracking-tight sm:text-[44px]">
+            {metadata.projectName}
+          </h1>
+          <p className="mt-4 max-w-xl text-body text-muted">
+            {firstName ? `${firstName}, voici` : 'Voici'} la proposition de {issuerName}
+            {metadata.clientCompany ? ` pour ${metadata.clientCompany}` : ''}.{' '}
+            {locked ? 'Merci pour votre confiance.' : 'Activez ou retirez les options : le récapitulatif se met à jour instantanément.'}
           </p>
-        </div>
-
-        {/* Locked scope */}
-        <section>
-          <h3 className="text-xs font-medium uppercase tracking-widest text-slate-400 mb-4">
-            Le socle — inclus
-          </h3>
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="font-semibold text-slate-900">{scopeTitle}</p>
-                <p className="text-sm text-slate-500 mt-1">
-                  Périmètre contractuel verrouillé, recettage et mise en ligne inclus.
-                </p>
-              </div>
-              <div className="text-right shrink-0">
-                <p className="font-mono font-semibold text-slate-900">{formatEuros(scopeTotal)}</p>
-                <p className="text-[11px] text-slate-400">HT</p>
-              </div>
+          <dl className="mt-6 flex flex-wrap gap-x-10 gap-y-3 text-ui">
+            <div>
+              <dt className="text-xs text-muted">Émis le</dt>
+              <dd className="mt-0.5 font-medium">{formatFrenchDate(metadata.issueDate)}</dd>
             </div>
-            <ul className="mt-5 grid sm:grid-cols-2 gap-x-6 gap-y-2">
+            <div>
+              <dt className="text-xs text-muted">Valable jusqu’au</dt>
+              <dd className="mt-0.5 font-medium">{validUntil}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">Délai estimé</dt>
+              <dd className="tabular mt-0.5 font-medium">{formatDays(calculations.totalDays)} ouvrés</dd>
+            </div>
+          </dl>
+        </header>
+
+        {/* Socle */}
+        <section aria-labelledby="inclus">
+          <h2 id="inclus" className={sectionTitle}>
+            <span>Inclus dans le devis</span>
+            <span className="tabular font-mono font-medium text-ink-2">
+              {formatEuros(scope.price)} HT{scope.days > 0 && ` · ${formatDays(scope.days)}`}
+            </span>
+          </h2>
+          <Card>
+            <ul className="divide-y divide-line">
               {fixedModules.map((m) => (
-                <li key={m.id} className="flex items-start gap-2 text-sm text-slate-600">
-                  <Check className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
-                  <span>{m.name}</span>
+                <li key={m.id} className="flex items-start gap-3.5 px-5 py-4">
+                  <span
+                    aria-hidden="true"
+                    className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-done-soft text-done-text ring-1 ring-inset ring-done/25"
+                  >
+                    <Check className="size-3" strokeWidth={2.5} />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-body font-medium">
+                      {m.name}
+                      {m.quantity > 1 && <span className="font-normal text-muted"> × {m.quantity}</span>}
+                    </p>
+                    {m.description && <p className="mt-0.5 text-ui leading-relaxed text-muted">{m.description}</p>}
+                  </div>
                 </li>
               ))}
             </ul>
-          </div>
+            <p className="border-t border-line px-5 py-3 text-xs text-muted">
+              Périmètre contractuel verrouillé, recettage et mise en ligne inclus.
+            </p>
+          </Card>
         </section>
 
         {/* Options */}
         {options.length > 0 && (
-          <section>
-            <h3 className="text-xs font-medium uppercase tracking-widest text-slate-400 mb-4">
-              Options à la carte
-            </h3>
-            <div className="space-y-3">
+          <section aria-labelledby="options">
+            <h2 id="options" className={sectionTitle}>
+              <span>Options à la carte</span>
+              <span className="tabular font-medium text-ink-2">
+                {activeOptions.length} / {options.length} retenue{activeOptions.length > 1 ? 's' : ''}
+              </span>
+            </h2>
+            <div className="space-y-2.5">
               {options.map((m) => {
                 const active = m.quantity > 0;
                 return (
@@ -126,30 +141,27 @@ export const ClientQuoteView: React.FC<ClientQuoteViewProps> = ({
                     aria-checked={active}
                     disabled={locked}
                     onClick={() => onToggleOption(m.id, !active)}
-                    className={`w-full text-left bg-white rounded-2xl border shadow-sm p-5 flex items-start gap-4 transition-all disabled:cursor-default ${
-                      active ? 'border-slate-900' : 'border-slate-100 hover:border-slate-300'
-                    }`}
+                    className={cn(
+                      'flex w-full items-start gap-4 rounded-xl border bg-surface p-5 text-left shadow-card outline-hidden transition-[border-color,background-color,box-shadow] focus-visible:shadow-[var(--ring)] disabled:cursor-default',
+                      active ? 'border-accent bg-accent-soft/40' : 'border-line hover:border-line-strong'
+                    )}
                   >
                     <span
-                      className={`mt-0.5 w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition-all ${
-                        active ? 'bg-slate-900 border-slate-900' : 'border-slate-300'
-                      }`}
+                      aria-hidden="true"
+                      className={cn(
+                        'mt-0.5 grid size-5 shrink-0 place-items-center rounded-md border transition-colors',
+                        active ? 'border-accent bg-accent text-accent-ink' : 'border-control bg-surface'
+                      )}
                     >
-                      {active && <Check className="w-3.5 h-3.5 text-white" />}
+                      {active && <Check className="size-3.5" strokeWidth={2.5} />}
                     </span>
-                    <span className="flex-1 min-w-0">
-                      <span className="block font-medium text-slate-900 text-sm">
-                        {m.name.replace(/^Option\s*:\s*/, '')}
-                      </span>
-                      <span className="block text-sm text-slate-500 mt-1 leading-relaxed">
-                        {m.description}
-                      </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-body font-medium">{m.name.replace(/^Option\s*:\s*/, '')}</span>
+                      <span className="mt-0.5 block text-ui leading-relaxed text-muted">{m.description}</span>
                     </span>
-                    <span className="text-right shrink-0">
-                      <span className="block font-mono text-sm font-semibold text-slate-900">
-                        +{formatEuros(getClientUnitPrice(m, settings), false)}
-                      </span>
-                      <span className="block text-[11px] text-slate-400">HT</span>
+                    <span className="shrink-0 text-right">
+                      <span className="tabular block font-mono text-ui font-semibold">+{formatEuros(getClientUnitPrice(m, settings), false)}</span>
+                      <span className="block text-xs text-muted">HT{m.days > 0 && ` · ${formatDays(m.days)}`}</span>
                     </span>
                   </button>
                 );
@@ -159,70 +171,71 @@ export const ClientQuoteView: React.FC<ClientQuoteViewProps> = ({
         )}
       </div>
 
-      {/* RIGHT: summary */}
-      <aside className="lg:sticky lg:top-24 bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-6">
-        <h3 className="text-xs font-medium uppercase tracking-widest text-slate-400">Récapitulatif</h3>
+      {/* Récapitulatif */}
+      <aside className="lg:sticky lg:top-24">
+        <Card aria-label="Récapitulatif" className="overflow-hidden">
+          <div className="px-6 pb-5 pt-6">
+            <p className="text-xs font-medium text-muted">Total TTC</p>
+            <p className="tabular mt-1.5 text-[40px] font-semibold leading-none tracking-tight">{formatEuros(calculations.totalTTC)}</p>
+            <p className="tabular mt-2.5 text-ui text-muted">
+              {formatEuros(calculations.finalSellingPriceHT)} HT · TVA {formatPercent(settings.vatRate)}
+            </p>
+          </div>
 
-        <dl className="space-y-3 text-sm">
-          {calculations.discountAmount > 0 && (
-            <div className="flex justify-between text-slate-500">
-              <dt>Remise ({settings.discountPercent} %)</dt>
-              <dd className="font-mono">-{formatEuros(calculations.discountAmount)}</dd>
+          <dl className="space-y-2.5 border-t border-line px-6 py-4 text-ui">
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted">Socle</dt>
+              <dd className="tabular font-mono">{formatEuros(scope.price)}</dd>
             </div>
-          )}
-          <div className="flex justify-between text-slate-600">
-            <dt>Total HT</dt>
-            <dd className="font-mono">{formatEuros(calculations.finalSellingPriceHT)}</dd>
+            {options.length > 0 && (
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted">Options</dt>
+                <dd className="tabular font-mono">{activeOptions.length ? `+${formatEuros(optionsTotal)}` : '—'}</dd>
+              </div>
+            )}
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted">Délai estimé</dt>
+              <dd className="tabular font-mono">{formatDays(calculations.totalDays)}</dd>
+            </div>
+          </dl>
+
+          <div className="border-t border-line px-6 py-4">
+            <p className="mb-2.5 text-xs font-semibold text-muted">Échéancier {schedule.map((s) => s.percent).join(' / ')}</p>
+            <ul className="space-y-2 text-ui">
+              {schedule.map((s) => (
+                <li key={s.label} className="flex items-baseline justify-between gap-3">
+                  <span className="text-ink-2">
+                    <span className="tabular mr-2 font-mono text-xs text-muted">{s.percent} %</span>
+                    {s.label}
+                  </span>
+                  <span className="tabular font-mono">{formatEuros((calculations.totalTTC * s.percent) / 100)}</span>
+                </li>
+              ))}
+            </ul>
           </div>
-          <div className="flex justify-between text-slate-600">
-            <dt>TVA ({settings.vatRate} %)</dt>
-            <dd className="font-mono">{formatEuros(calculations.vatAmount)}</dd>
+
+          <div className="hidden border-t border-line bg-surface-2 p-4 lg:block">
+            <Button variant="primary" size="lg" onClick={onOpenQuote} className="w-full" icon={<ArrowRight className="size-4" aria-hidden="true" />}>
+              {cta}
+            </Button>
+            <p className="mt-2.5 flex items-center justify-center gap-1.5 text-xs text-muted">
+              <Lock className="size-3" aria-hidden="true" />
+              Lien privé · {issuerName}
+            </p>
           </div>
-          <div className="flex justify-between items-baseline pt-3 border-t border-slate-100">
-            <dt className="font-medium text-slate-900">Total TTC</dt>
-            <dd className="font-mono text-2xl font-semibold text-slate-900">
-              {formatEuros(calculations.totalTTC)}
-            </dd>
-          </div>
-        </dl>
-
-        <div>
-          <p className="text-xs font-medium uppercase tracking-widest text-slate-400 mb-3">
-            Échéancier {schedule.map((s) => s.percent).join('/')}
-          </p>
-          <ul className="space-y-2 text-sm">
-            {schedule.map((s) => (
-              <li key={s.label} className="flex justify-between text-slate-600">
-                <span>
-                  <span className="font-mono text-slate-400 mr-2">{s.percent}%</span>
-                  {s.label}
-                </span>
-                <span className="font-mono text-slate-900">
-                  {formatEuros((calculations.totalTTC * s.percent) / 100)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <p className="text-xs text-slate-400">
-          Délai estimé : <span className="font-mono text-slate-600">{formatDays(calculations.totalDays)}</span> ouvrés
-        </p>
-
-        <button
-          type="button"
-          onClick={onOpenQuote}
-          className="w-full py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium flex items-center justify-center gap-2 transition-all active:scale-[0.99]"
-        >
-          <span>{locked ? 'Voir le devis signé' : 'Consulter et signer le devis'}</span>
-          <ArrowRight className="w-4 h-4" />
-        </button>
-
-        <p className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
-          <Lock className="w-3 h-3" />
-          Lien privé — {issuerName}
-        </p>
+        </Card>
       </aside>
+
+      {/* Mobile : le total et l'action restent à portée de pouce */}
+      <div className="fixed inset-x-0 bottom-0 z-20 flex items-center justify-between gap-4 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur lg:hidden">
+        <div className="min-w-0">
+          <p className="text-xs text-muted">Total TTC</p>
+          <p className="tabular text-title font-semibold">{formatEuros(calculations.totalTTC)}</p>
+        </div>
+        <Button variant="primary" size="lg" onClick={onOpenQuote}>
+          {locked ? 'Voir le devis' : 'Signer'}
+        </Button>
+      </div>
     </div>
   );
 };
