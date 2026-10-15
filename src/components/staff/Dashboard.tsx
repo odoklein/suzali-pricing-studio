@@ -110,6 +110,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, account, onOpen, on
             ? `${summary.join(' · ')}.`
             : isStaff
             ? 'Les devis créés par vous et par vos partenaires.'
+            : account.managed
+            ? 'Créez un devis aux tarifs de votre grille, puis transmettez le lien pour le faire signer.'
             : 'Créez un devis, fixez vos prix client puis transmettez le lien à votre client.'
         }
         actions={

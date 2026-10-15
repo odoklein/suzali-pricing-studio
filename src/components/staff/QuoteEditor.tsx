@@ -4,13 +4,14 @@ import type {
   ClientMetadata,
   PageModule,
   PricingSettings,
+  PricingView,
   QuoteRecord,
   UserRole,
 } from '../../types/quote';
 import { initialMetadata, initialSettings } from '../../data/initialModules';
 import { getQuote, saveQuote, errorMessage } from '../../lib/api';
 import { buildClientLink } from '../../lib/session';
-import { buildClientSnapshot, buildQuoteData, snapshotTotalHt } from '../../utils/quoteData';
+import { buildClientSnapshot, buildQuoteData, snapshotTotalHt, toListedPricing } from '../../utils/quoteData';
 import { computeQuoteCalculations } from '../../utils/formatters';
 import { QuoteSummary } from '../configurator/QuoteSummary';
 import { ConfigControls } from '../configurator/ConfigControls';
@@ -53,6 +54,8 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({ token, account, quoteI
   const isAdmin = account.role === 'admin';
   const uiRole: UserRole = isAdmin ? 'admin' : 'partner';
   const canEditRate = account.role === 'owner' || isAdmin;
+  // Client du revendeur : une seule grille de prix, imposée par le revendeur (jamais de prix d'achat ni de prix à saisir)
+  const isManagedClient = account.managed === true;
 
   const recordRef = useRef<QuoteRecord | null>(null);
   const latest = useRef({ modules, settings, metadata });
@@ -70,9 +73,16 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({ token, account, quoteI
       const rec = await getQuote(token, quoteId);
       const md: ClientMetadata = { ...initialMetadata, ...rec.data.metadata, quoteNumber: rec.reference };
       const st: PricingSettings = { ...initialSettings, ...rec.data.settings };
-      // Le tarif journalier d'un partenaire est fixé par la régie : le devis suit toujours celui du compte
-      if (!canEditRate) st.tjmSuzali = account.dailyRate;
-      const mods = rec.data.modules ?? [];
+      let mods = rec.data.modules ?? [];
+      // Devis d'un client du revendeur : un seul prix par ligne, quel que soit celui qui l'ouvre
+      if (rec.accountManaged || isManagedClient) {
+        const listed = toListedPricing(mods, st);
+        mods = listed.modules;
+        Object.assign(st, listed.settings);
+      } else if (!canEditRate) {
+        // Le tarif journalier d'un partenaire est fixé par la régie : le devis suit toujours celui du compte
+        st.tjmSuzali = account.dailyRate;
+      }
       recordRef.current = rec;
       lastSaved.current = JSON.stringify({ modules: mods, settings: st, metadata: md });
       setRecord(rec);
@@ -86,7 +96,7 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({ token, account, quoteI
     } catch (e) {
       setLoadError(errorMessage(e));
     }
-  }, [token, quoteId, canEditRate, account.dailyRate]);
+  }, [token, quoteId, canEditRate, isManagedClient, account.dailyRate]);
 
   useEffect(() => {
     void load();
@@ -269,6 +279,7 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({ token, account, quoteI
   }
 
   const locked = record.status === 'signed';
+  const pricing: PricingView = isManagedClient ? 'fixed' : record.accountManaged ? 'listed' : 'resale';
   const signedInfo =
     locked && record.signedBy && record.signedAt
       ? { by: record.signedBy, at: record.signedAt, signature: record.signature }
@@ -380,6 +391,7 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({ token, account, quoteI
               <PageTable
                 modules={modules}
                 currentRole={uiRole}
+                pricing={pricing}
                 settings={settings}
                 onUpdateQuantity={(id, quantity) => updateModule(id, { quantity })}
                 onUpdateIncluded={(id, includedDetails) => updateModule(id, { includedDetails })}
@@ -394,7 +406,7 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({ token, account, quoteI
             <aside className="order-1 lg:sticky lg:top-6 lg:order-2">
               <QuoteSummary
                 currentRole={uiRole}
-                canEditRate={canEditRate}
+                pricing={pricing}
                 settings={settings}
                 calculations={calculations}
                 metadata={metadata}

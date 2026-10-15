@@ -37,22 +37,25 @@ assert.equal(owner.ok, true, 'TEST_EMAIL / TEST_PASSWORD must be valid');
 assert.ok(['owner', 'admin'].includes(owner.account.role));
 assert.ok(!owner.account.mustChangePassword, 'change the temporary password of the test account first');
 
+// Prices of the test client: a client of the reseller only ever sees (and can only ever use) these
+const PRICES = { prices: { 'page-accueil': 100, 'opt-a': 50 }, retouchPrice: 45 };
+
 // Partner creation: temporary password, forced change
 const email = `test-${randomBytes(4).toString('hex')}@example.invalid`;
 const temp = `Tmp-${randomBytes(6).toString('hex')}`;
 const created = await rpc('app_partner_save', {
   p_token: owner.token, p_id: null, p_name: 'TEST Partner', p_tagline: '', p_daily_rate: 160,
-  p_contact_name: 'T', p_email: email, p_phone: '', p_address: '', p_siret: '', p_password: temp, p_active: true,
+  p_contact_name: 'T', p_email: email, p_phone: '', p_address: '', p_siret: '', p_password: temp, p_active: true, p_managed: null, p_price_list: PRICES,
 });
 assert.ok(!created.error, created.error);
 const dup = await rpc('app_partner_save', {
   p_token: owner.token, p_id: null, p_name: 'TEST Dup', p_tagline: '', p_daily_rate: 160,
-  p_contact_name: 'T', p_email: email.toUpperCase(), p_phone: '', p_address: '', p_siret: '', p_password: temp, p_active: true,
+  p_contact_name: 'T', p_email: email.toUpperCase(), p_phone: '', p_address: '', p_siret: '', p_password: temp, p_active: true, p_managed: null, p_price_list: PRICES,
 });
 assert.equal(dup.error, 'email_taken');
 const short = await rpc('app_partner_save', {
   p_token: owner.token, p_id: null, p_name: 'TEST Short', p_tagline: '', p_daily_rate: 160,
-  p_contact_name: 'T', p_email: `x-${email}`, p_phone: '', p_address: '', p_siret: '', p_password: 'short', p_active: true,
+  p_contact_name: 'T', p_email: `x-${email}`, p_phone: '', p_address: '', p_siret: '', p_password: 'short', p_active: true, p_managed: null, p_price_list: PRICES,
 });
 assert.equal(short.error, 'invalid_password_format');
 
@@ -69,6 +72,10 @@ assert.equal((await rpc('app_login', { p_email: email, p_password: temp })).data
 const partner = (await rpc('app_login', { p_email: email, p_password: password })).data;
 assert.equal(partner.ok, true);
 assert.equal(partner.account.role, 'partner');
+if (owner.account.role === 'owner') {
+  assert.equal(partner.account.managed, true);
+  assert.equal(partner.account.dailyRate, 0, 'a client of the reseller must not learn the purchase day rate');
+}
 assert.ok(!partner.account.mustChangePassword);
 
 // Lockout is per e-mail: 5 failures lock that account only
@@ -94,6 +101,21 @@ const saved = await rpc('app_quote_save', {
 });
 assert.ok(saved.data?.ok, saved.error);
 const q = saved.data.quote;
+if (partner.account.managed) {
+  // prices come from the price list, whatever the client sends
+  assert.equal(saved.data.quote.totalHt, 100);
+  assert.equal(q.data.modules.find((m) => m.id === 'page-accueil').basePrice, 100);
+  const cheat = await rpc('app_quote_save', {
+    p_token: partner.token, p_id: q.id, p_title: 'T', p_client_name: 'C', p_client_email: '', p_status: 'draft', p_total_ht: 1,
+    p_data: { modules: [{ ...snapshot.modules[0], basePrice: 1, clientPrice: 1 }, { ...snapshot.modules[1], basePrice: 1 }, { id: 'custom-x', name: 'x', basePrice: 0, days: 1, quantity: 9 }], settings: { ...snapshot.settings, vatRate: 0 }, clientSnapshot: snapshot },
+    p_expected_updated_at: q.updatedAt,
+  });
+  assert.equal(cheat.data.quote.totalHt, 100);
+  assert.equal(cheat.data.quote.data.modules.length, 2, 'unknown custom line dropped');
+  q.updatedAt = cheat.data.quote.updatedAt;
+  q.data = cheat.data.quote.data;
+  assert.equal((await rpc('app_partner_prices_save', { p_token: partner.token, p_id: partner.account.id, p_price_list: PRICES })).error, 'forbidden');
+}
 
 // Draft is invisible to the client
 assert.equal((await rpc('client_quote_get', { p_share_token: q.shareToken })).data, null);
@@ -142,7 +164,7 @@ const partners = (await rpc('app_partners_list', { p_token: owner.token })).data
 const me = partners.find((p) => p.email === email);
 await rpc('app_partner_save', {
   p_token: owner.token, p_id: me.id, p_name: 'TEST Partner (désactivé)', p_tagline: '', p_daily_rate: 160,
-  p_contact_name: '', p_email: email, p_phone: '', p_address: '', p_siret: '', p_password: null, p_active: false,
+  p_contact_name: '', p_email: email, p_phone: '', p_address: '', p_siret: '', p_password: null, p_active: false, p_managed: null, p_price_list: null,
 });
 await rpc('app_logout', { p_token: owner.token });
 console.log('API smoke test passed');

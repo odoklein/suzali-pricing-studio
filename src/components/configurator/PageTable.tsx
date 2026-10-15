@@ -1,5 +1,5 @@
 import React, { useId, useState } from 'react';
-import type { PageModule, UserRole, PricingSettings } from '../../types/quote';
+import type { PageModule, UserRole, PricingSettings, PricingView } from '../../types/quote';
 import {
   formatEuros,
   formatDays,
@@ -8,6 +8,7 @@ import {
   sumModules,
   retouchBilling,
   retouchClientPrice,
+  clientPricingMode,
   isOptionModule,
 } from '../../utils/formatters';
 import { cn } from '../../lib/cn';
@@ -20,6 +21,8 @@ import { Plus, Minus, Pencil, Check, ChevronRight, Info, Trash2, X } from 'lucid
 interface PageTableProps {
   modules: PageModule[];
   currentRole: UserRole;
+  /** Lecture des prix : voir PricingView (par défaut : prix d'achat + prix client) */
+  pricing?: PricingView;
   settings: PricingSettings;
   onUpdateQuantity: (id: string, newQuantity: number) => void;
   onUpdateIncluded: (id: string, newIncluded: string) => void;
@@ -48,6 +51,7 @@ const th = 'px-3 py-2 text-xs font-medium text-muted';
 export const PageTable: React.FC<PageTableProps> = ({
   modules,
   currentRole,
+  pricing = 'resale',
   settings,
   onUpdateQuantity,
   onUpdateIncluded,
@@ -58,6 +62,8 @@ export const PageTable: React.FC<PageTableProps> = ({
   onDeleteModule,
 }) => {
   const isAdmin = currentRole === 'admin';
+  const resale = pricing === 'resale';
+  const fixed = pricing === 'fixed';
   const formId = useId();
 
   const [phase, setPhase] = useState<Phase>('all');
@@ -120,8 +126,17 @@ export const PageTable: React.FC<PageTableProps> = ({
         id={`${formId}-title`}
         title="Livrables"
         count={activeCount}
-        description="Choisissez les quantités, puis fixez votre prix client pour chaque ligne."
+        description={
+          fixed
+            ? 'Choisissez les quantités : les prix sont ceux de votre grille tarifaire.'
+            : !resale
+            ? 'Choisissez les quantités ; le prix de chaque ligne vient de la grille tarifaire du client.'
+            : clientPricingMode(settings) === 'tjm'
+            ? 'Choisissez les quantités : le prix client suit les jours et votre TJM.'
+            : 'Choisissez les quantités, puis fixez votre prix client pour chaque ligne.'
+        }
         action={
+          fixed ? undefined : (
           <Button
             onClick={() => setIsAdding((v) => !v)}
             aria-expanded={isAdding}
@@ -130,6 +145,7 @@ export const PageTable: React.FC<PageTableProps> = ({
           >
             Ajouter
           </Button>
+          )
         }
       />
 
@@ -176,7 +192,7 @@ export const PageTable: React.FC<PageTableProps> = ({
           </div>
           <div className="mt-3 flex flex-wrap items-end gap-3">
             {settings.mode === 'forfait' && (
-              <Field label="Prix d'achat (€)">
+              <Field label={resale ? "Prix d'achat (€)" : 'Prix HT (€)'}>
                 {(id) => <NumberInput id={id} min={0} value={newPrice} onValueChange={setNewPrice} className={cn(cellInput, 'h-8 w-24')} />}
               </Field>
             )}
@@ -191,20 +207,22 @@ export const PageTable: React.FC<PageTableProps> = ({
       )}
 
       <div className="overflow-x-auto scroll-thin">
-        <table className="w-full min-w-[680px] border-collapse text-left text-ui">
+        <table className={cn('w-full border-collapse text-left text-ui', resale ? 'min-w-[680px]' : 'min-w-[520px]')}>
           <thead>
             <tr className="border-y border-line bg-surface-2">
               <th scope="col" className={cn(th, 'w-[100px] pl-5 text-center')}>Qté</th>
               <th scope="col" className={th}>Livrable</th>
               <th scope="col" className={cn(th, 'w-28 text-right')}>Jours</th>
-              <th scope="col" className={cn(th, 'w-24 text-right')}>{isAdmin ? 'Coût' : "Prix d'achat"}</th>
-              <th scope="col" className={cn(th, 'w-32 pr-5 text-right')}>{isAdmin ? 'Prix client' : 'Votre prix'}</th>
+              {resale && <th scope="col" className={cn(th, 'w-24 text-right')}>{isAdmin ? 'Coût' : "Prix d'achat"}</th>}
+              <th scope="col" className={cn(th, 'w-32 pr-5 text-right')}>
+                {!resale ? 'Prix HT' : isAdmin ? 'Prix client' : 'Votre prix'}
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
             {displayed.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-10 text-center text-muted">
+                <td colSpan={resale ? 5 : 4} className="py-10 text-center text-muted">
                   Aucun livrable dans cette catégorie.
                 </td>
               </tr>
@@ -328,28 +346,42 @@ export const PageTable: React.FC<PageTableProps> = ({
                     </span>
                   </td>
 
-                  <td className="px-3 py-3.5 text-right font-mono">
-                    {isAdmin && settings.mode === 'forfait' ? (
-                      <NumberInput
-                        min={0}
-                        value={mod.basePrice}
-                        onValueChange={(v) => onUpdateBasePrice(mod.id, v)}
-                        aria-label={`Coût unitaire : ${mod.name}`}
-                        className={cn(cellInput, 'w-[4.5rem]')}
-                      />
-                    ) : (
-                      <span className="tabular text-ink-2">{formatEuros(unitCost)}</span>
-                    )}
-                  </td>
+                  {resale && (
+                    <td className="px-3 py-3.5 text-right font-mono">
+                      {isAdmin && settings.mode === 'forfait' ? (
+                        <NumberInput
+                          min={0}
+                          value={mod.basePrice}
+                          onValueChange={(v) => onUpdateBasePrice(mod.id, v)}
+                          aria-label={`Coût unitaire : ${mod.name}`}
+                          className={cn(cellInput, 'w-[4.5rem]')}
+                        />
+                      ) : (
+                        <span className="tabular text-ink-2">{formatEuros(unitCost)}</span>
+                      )}
+                    </td>
+                  )}
 
                   <td className="py-3.5 pl-3 pr-5 text-right font-mono">
-                    <NumberInput
-                      min={0}
-                      value={Math.round(unitPrice * 100) / 100}
-                      onValueChange={(v) => onUpdateClientPrice(mod.id, v)}
-                      aria-label={`Prix client unitaire : ${mod.name}`}
-                      className={cn(cellInput, 'w-24 font-semibold')}
-                    />
+                    {fixed || (resale && clientPricingMode(settings) === 'tjm') ? (
+                      <span className="tabular text-body font-semibold text-ink">{formatEuros(unitPrice)}</span>
+                    ) : !resale ? (
+                      <NumberInput
+                        min={0}
+                        value={Math.round(unitPrice * 100) / 100}
+                        onValueChange={(v) => onUpdateBasePrice(mod.id, v)}
+                        aria-label={`Prix unitaire : ${mod.name}`}
+                        className={cn(cellInput, 'w-24 font-semibold')}
+                      />
+                    ) : (
+                      <NumberInput
+                        min={0}
+                        value={Math.round(unitPrice * 100) / 100}
+                        onValueChange={(v) => onUpdateClientPrice(mod.id, v)}
+                        aria-label={`Prix client unitaire : ${mod.name}`}
+                        className={cn(cellInput, 'w-24 font-semibold')}
+                      />
+                    )}
                     <span className="mt-1.5 flex items-center justify-end gap-1 text-meta text-muted">
                       {mod.isCustom && (
                         <IconButton label={`Supprimer ${mod.name}`} size="sm" onClick={() => handleDelete(mod)} className="text-muted hover:text-danger-text">
@@ -372,7 +404,7 @@ export const PageTable: React.FC<PageTableProps> = ({
                 {activeCount} ligne{activeCount > 1 ? 's' : ''} retenue{activeCount > 1 ? 's' : ''}
               </th>
               <td className="tabular px-3 py-3 text-right font-mono text-ui font-semibold text-ink">{formatDays(totals.days)}</td>
-              <td />
+              {resale && <td />}
               <td className="tabular py-3 pl-3 pr-5 text-right font-mono text-body font-semibold text-ink">{formatEuros(totals.price)}</td>
             </tr>
           </tfoot>

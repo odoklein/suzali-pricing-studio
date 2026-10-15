@@ -35,7 +35,7 @@ export const StaffApp: React.FC<StaffAppProps> = ({ token, account, onAccountUpd
 
   const nav: ShellNavItem[] = [
     { key: 'quotes', label: 'Devis', icon: FileText },
-    ...(canManagePartners ? [{ key: 'partners', label: 'Partenaires', icon: Users }] : []),
+    ...(canManagePartners ? [{ key: 'partners', label: account.role === 'owner' ? 'Clients' : 'Partenaires', icon: Users }] : []),
   ];
 
   const handleNavigate = async (key: string) => {
@@ -113,7 +113,7 @@ export const StaffApp: React.FC<StaffAppProps> = ({ token, account, onAccountUpd
             createError={createError}
           />
         )}
-        {view.name === 'partners' && canManagePartners && <PartnersPanel token={token} />}
+        {view.name === 'partners' && canManagePartners && <PartnersPanel token={token} account={account} />}
         {view.name === 'editor' && (
           <QuoteEditor
             key={view.id}

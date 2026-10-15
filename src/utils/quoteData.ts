@@ -3,6 +3,7 @@ import type {
   ClientMetadata,
   ClientSnapshot,
   PageModule,
+  PriceList,
   PricingSettings,
   QuoteData,
 } from '../types/quote';
@@ -55,6 +56,7 @@ export function buildClientSnapshot(
     modules: snapshotModules,
     settings: {
       mode: 'forfait',
+      clientMode: 'forfait',
       tjmSuzali: 0,
       partnerMarginPercent: 0,
       bufferPercent: settings.bufferPercent,
@@ -95,10 +97,47 @@ export function issuerMetadata(account: Account): Partial<ClientMetadata> {
   };
 }
 
+/**
+ * Devis d'un client du revendeur : un seul prix par ligne (basePrice), celui de la grille du revendeur.
+ * Même règle que le serveur (app_quote_mask) : ni prix d'achat, ni prix client distinct, ni TJM.
+ */
+export function toListedPricing(
+  modules: PageModule[],
+  settings: PricingSettings
+): { modules: PageModule[]; settings: PricingSettings } {
+  return {
+    modules: modules.map((m) => {
+      const { clientPrice: _clientPrice, ...rest } = m;
+      return { ...rest, basePrice: round2(getClientUnitPrice(m, settings)) };
+    }),
+    settings: {
+      ...settings,
+      mode: 'forfait',
+      clientMode: 'forfait',
+      clientTjm: undefined,
+      tjmSuzali: 0,
+      partnerMarginPercent: 0,
+      discountPercent: 0,
+      retouchUnitPrice: retouchClientPrice(settings),
+      retouchClientPrice: undefined,
+    },
+  };
+}
+
+/** Livrables de la grille, au prix de la grille du revendeur ; une ligne sans prix dans la grille n'est pas proposée */
+export function modulesFromPriceList(list: PriceList): PageModule[] {
+  return initialModules
+    .filter((m) => list.prices[m.id] !== undefined)
+    .map((m) => ({ ...m, basePrice: list.prices[m.id] }));
+}
+
 /** Données initiales d'un nouveau devis : grille de référence en forfait, tarif journalier du compte conservé pour le mode TJM */
 export function newQuoteData(account: Account): QuoteData {
-  const modules = initialModules.map((m) => ({ ...m }));
-  const settings: PricingSettings = { ...initialSettings, tjmSuzali: account.dailyRate };
+  const listed = account.managed && account.priceList ? account.priceList : null;
+  const modules = listed ? modulesFromPriceList(listed) : initialModules.map((m) => ({ ...m }));
+  const settings: PricingSettings = listed
+    ? { ...initialSettings, tjmSuzali: 0, retouchUnitPrice: listed.retouchPrice }
+    : { ...initialSettings, tjmSuzali: account.dailyRate };
   const metadata: ClientMetadata = {
     ...initialMetadata,
     ...issuerMetadata(account),

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Check, Link2, Minus, Plus } from 'lucide-react';
-import type { ClientMetadata, PricingMode, PricingSettings, QuoteCalculations, UserRole } from '../../types/quote';
-import { formatDays, formatEuros, formatPercent, retouchClientPrice } from '../../utils/formatters';
+import type { ClientMetadata, PricingMode, PricingSettings, PricingView, QuoteCalculations, UserRole } from '../../types/quote';
+import { clientDayRate, clientPricingMode, formatDays, formatEuros, formatPercent, retouchClientPrice } from '../../utils/formatters';
 import { cn } from '../../lib/cn';
 import { NumberInput } from '../ui/NumberInput';
 import { Button } from '../ui/button';
@@ -9,8 +9,8 @@ import { Card, SegmentedControl } from '../ui/display';
 
 interface QuoteSummaryProps {
   currentRole: UserRole;
-  /** Peut modifier le tarif journalier de ce devis (propriétaire / régie) */
-  canEditRate: boolean;
+  /** Lecture des prix : voir PricingView (par défaut : prix d'achat + prix client) */
+  pricing?: PricingView;
   settings: PricingSettings;
   calculations: QuoteCalculations;
   metadata: ClientMetadata;
@@ -39,7 +39,7 @@ function Figure({ label, value, hint, tone }: { label: string; value: string; hi
 
 export const QuoteSummary: React.FC<QuoteSummaryProps> = ({
   currentRole,
-  canEditRate,
+  pricing = 'resale',
   settings,
   calculations,
   metadata,
@@ -47,6 +47,8 @@ export const QuoteSummary: React.FC<QuoteSummaryProps> = ({
   onShare,
 }) => {
   const isAdmin = currentRole === 'admin';
+  const resale = pricing === 'resale';
+  const fixed = pricing === 'fixed';
   const [copyState, setCopyState] = useState<'idle' | 'busy' | 'copied'>('idle');
   const clientName = metadata.clientContact.split(' ')[0] || 'votre client';
 
@@ -74,7 +76,7 @@ export const QuoteSummary: React.FC<QuoteSummaryProps> = ({
   return (
     <Card aria-label="Récapitulatif du devis" className="overflow-hidden">
       <div className="px-5 pb-5 pt-5">
-        <p className="text-xs font-medium text-muted">Prix client HT</p>
+        <p className="text-xs font-medium text-muted">{fixed ? 'Total HT' : 'Prix client HT'}</p>
         <p className="tabular mt-1 text-[34px] font-semibold leading-none tracking-tight text-ink">
           {formatEuros(calculations.finalSellingPriceHT)}
         </p>
@@ -89,12 +91,21 @@ export const QuoteSummary: React.FC<QuoteSummaryProps> = ({
           value={formatDays(calculations.totalDays)}
           hint={`${formatDays(calculations.totalDevDays)} + ${formatPercent(settings.bufferPercent)} de marge`}
         />
-        <Figure
-          label={isAdmin ? 'Coût de revient' : "Prix d'achat"}
-          value={formatEuros(calculations.baseSuzaliCostHT)}
-          hint={calculations.retouchesCost > 0 ? `dont ${formatEuros(calculations.retouchesCost, false)} de retouches` : undefined}
-        />
-        {isAdmin && (
+        {!resale && (
+          <Figure
+            label="Livrables retenus"
+            value={String(calculations.activeModuleCount)}
+            hint={calculations.retouchesPrice > 0 ? `dont ${formatEuros(calculations.retouchesPrice, false)} de retouches` : undefined}
+          />
+        )}
+        {resale && (
+          <Figure
+            label={isAdmin ? 'Coût de revient' : "Prix d'achat"}
+            value={formatEuros(calculations.baseSuzaliCostHT)}
+            hint={calculations.retouchesCost > 0 ? `dont ${formatEuros(calculations.retouchesCost, false)} de retouches` : undefined}
+          />
+        )}
+        {resale && isAdmin && (
           <Figure
             label="Marge partenaire"
             value={formatEuros(margin)}
@@ -102,11 +113,11 @@ export const QuoteSummary: React.FC<QuoteSummaryProps> = ({
             tone={margin < 0 ? 'danger' : undefined}
           />
         )}
-        {!isAdmin && (
+        {resale && !isAdmin && (
           <Figure
-            label="Votre tarif journalier"
-            value={`${formatEuros(settings.tjmSuzali, false)} / j`}
-            hint={settings.mode === 'tjm' ? 'Appliqué à ce devis' : 'Appliqué en mode « Temps passé »'}
+            label={clientPricingMode(settings) === 'tjm' ? 'Votre TJM client' : "Tarif d'achat journalier"}
+            value={`${formatEuros(clientPricingMode(settings) === 'tjm' ? clientDayRate(settings) : settings.tjmSuzali, false)} / j`}
+            hint={clientPricingMode(settings) === 'tjm' ? `Achat : ${formatEuros(settings.tjmSuzali, false)} / j` : 'Défini par la régie'}
           />
         )}
       </dl>
@@ -157,38 +168,85 @@ export const QuoteSummary: React.FC<QuoteSummaryProps> = ({
 
         <div className="mt-3 flex items-center justify-between gap-3 border-t border-line pt-3">
           <label htmlFor="retouche-prix-client" className="text-ui text-ink-2">
-            Votre prix par retouche en plus
+            {resale ? 'Votre prix par retouche en plus' : 'Prix par retouche en plus'}
           </label>
-          <span className="inline-flex items-center gap-1.5">
-            <NumberInput
-              id="retouche-prix-client"
-              min={0}
-              max={1000}
-              value={retouchClientPrice(settings)}
-              onValueChange={(retouchClientPrice) => onUpdateSettings({ retouchClientPrice })}
-              className={cn(miniInput, 'w-16')}
-            />
-            <span className="text-xs text-muted">€</span>
-          </span>
+          {fixed ? (
+            <span className="tabular font-mono text-ui font-semibold text-ink">{formatEuros(retouchClientPrice(settings), false)}</span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5">
+              <NumberInput
+                id="retouche-prix-client"
+                min={0}
+                max={1000}
+                value={retouchClientPrice(settings)}
+                onValueChange={(price) => onUpdateSettings(resale ? { retouchClientPrice: price } : { retouchUnitPrice: price })}
+                className={cn(miniInput, 'w-16')}
+              />
+              <span className="text-xs text-muted">€</span>
+            </span>
+          )}
         </div>
-        <p className="mt-1.5 text-xs text-muted">
-          {isAdmin ? 'Coût' : "Prix d'achat"} : {formatEuros(settings.retouchUnitPrice, false)} par retouche en plus.
-        </p>
+        {resale && (
+          <p className="mt-1.5 text-xs text-muted">
+            {isAdmin ? 'Coût' : "Prix d'achat"} : {formatEuros(settings.retouchUnitPrice, false)} par retouche en plus.
+          </p>
+        )}
       </div>
 
+      {resale && (
       <div className="space-y-3 border-t border-line px-5 py-4">
-        <p className="text-xs font-medium text-muted">{isAdmin ? 'Réglages régie' : "Calcul du prix d'achat"}</p>
+        <p className="text-xs font-medium text-muted">Votre tarification client</p>
         <SegmentedControl<PricingMode>
           size="sm"
-          label="Modèle de calcul"
-          value={settings.mode}
-          onChange={(mode) => onUpdateSettings({ mode })}
+          label="Facturer votre client"
+          value={clientPricingMode(settings)}
+          onChange={(clientMode) => onUpdateSettings({ clientMode, clientTjm: settings.clientTjm ?? settings.tjmSuzali })}
           options={[
             { value: 'forfait', label: 'Forfait par page' },
             { value: 'tjm', label: 'Temps passé (TJM)' },
           ]}
         />
-        {isAdmin && (
+        {clientPricingMode(settings) === 'tjm' ? (
+          <>
+            <div className="flex items-center justify-between gap-3">
+              <label htmlFor="client-tjm" className="text-ui text-ink-2">
+                Votre TJM client
+              </label>
+              <span className="inline-flex items-center gap-1.5">
+                <NumberInput
+                  id="client-tjm"
+                  min={0}
+                  max={5000}
+                  value={clientDayRate(settings)}
+                  onValueChange={(clientTjm) => onUpdateSettings({ clientTjm })}
+                  className={cn(miniInput, 'w-20')}
+                />
+                <span className="text-xs text-muted">€/j</span>
+              </span>
+            </div>
+            <p className="text-xs leading-snug text-muted">Le prix de chaque ligne = jours × TJM. Le client voit un prix par livrable, jamais le TJM.</p>
+          </>
+        ) : (
+          <p className="text-xs leading-snug text-muted">Vous fixez votre prix client pour chaque ligne du tableau.</p>
+        )}
+      </div>
+      )}
+
+      {isAdmin && (
+        <div className="space-y-3 border-t border-line px-5 py-4">
+          <p className="text-xs font-medium text-muted">Réglages régie</p>
+          {resale && (
+            <SegmentedControl<PricingMode>
+              size="sm"
+              label="Modèle de calcul du prix d'achat"
+              value={settings.mode}
+              onChange={(mode) => onUpdateSettings({ mode })}
+              options={[
+                { value: 'forfait', label: 'Forfait par page' },
+                { value: 'tjm', label: 'Temps passé (TJM)' },
+              ]}
+            />
+          )}
           <div className="flex items-center justify-between gap-3">
             <label htmlFor="buffer-percent" className="text-ui text-ink-2">
               Marge de sécurité
@@ -205,13 +263,11 @@ export const QuoteSummary: React.FC<QuoteSummaryProps> = ({
               <span className="text-xs text-muted">%</span>
             </span>
           </div>
-        )}
-        {settings.mode === 'tjm' && (
-          <div className="flex items-center justify-between gap-3">
-            <label htmlFor="tjm" className="text-ui text-ink-2">
-              TJM
-            </label>
-            {canEditRate ? (
+          {resale && settings.mode === 'tjm' && (
+            <div className="flex items-center justify-between gap-3">
+              <label htmlFor="tjm" className="text-ui text-ink-2">
+                TJM d'achat
+              </label>
               <span className="inline-flex items-center gap-1.5">
                 <NumberInput
                   id="tjm"
@@ -223,14 +279,10 @@ export const QuoteSummary: React.FC<QuoteSummaryProps> = ({
                 />
                 <span className="text-xs text-muted">€/j</span>
               </span>
-            ) : (
-              <span id="tjm" className="tabular font-mono text-ui font-semibold text-ink">
-                {formatEuros(settings.tjmSuzali, false)} / j
-              </span>
-            )}
-          </div>
-        )}
-      </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="border-t border-line bg-surface-2 p-4">
         <Button

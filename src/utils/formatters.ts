@@ -1,4 +1,4 @@
-import type { PageModule, PricingSettings, QuoteCalculations } from '../types/quote';
+import type { PageModule, PricingMode, PricingSettings, QuoteCalculations } from '../types/quote';
 
 /** Identifiant de la ligne « retouches supplémentaires », ajoutée au devis client */
 export const EXTRA_RETOUCHES_ID = 'extra-retouches';
@@ -6,13 +6,23 @@ export const EXTRA_RETOUCHES_ID = 'extra-retouches';
 /** Option à la carte, activable par le client */
 export const isOptionModule = (mod: PageModule): boolean => mod.id.startsWith('opt-');
 
+/** Prestation offerte incluse d'office (traduction, SEO technique) : ne compte pas comme une page pour les retouches */
+export const isIncludedService = (mod: PageModule): boolean => mod.id.startsWith('inc-');
+
 /** Coût de revient unitaire HT (grille forfaitaire ou charge × TJM) */
 export function getUnitCost(mod: PageModule, settings: PricingSettings): number {
   return settings.mode === 'forfait' ? mod.basePrice : mod.days * settings.tjmSuzali;
 }
 
-/** Prix unitaire HT facturé au client : prix saisi par le partenaire, sinon prix d'achat (+ marge des anciens devis) */
+/** Le partenaire facture son client au forfait par page (prix saisi par ligne) ou au temps passé (charge × son TJM) */
+export const clientPricingMode = (settings: PricingSettings): PricingMode => settings.clientMode ?? 'forfait';
+
+/** TJM facturé au client : celui du partenaire, sinon le tarif d'achat */
+export const clientDayRate = (settings: PricingSettings): number => settings.clientTjm ?? settings.tjmSuzali;
+
+/** Prix unitaire HT facturé au client : charge × TJM client, ou prix saisi par le partenaire, sinon prix d'achat (+ marge des anciens devis) */
 export function getClientUnitPrice(mod: PageModule, settings: PricingSettings): number {
+  if (clientPricingMode(settings) === 'tjm') return Math.round(mod.days * clientDayRate(settings) * 100) / 100;
   if (mod.clientPrice !== undefined) return mod.clientPrice;
   return getUnitCost(mod, settings) * (1 + settings.partnerMarginPercent / 100);
 }
@@ -37,7 +47,7 @@ export function retouchBilling(
   settings: PricingSettings
 ): { pageCount: number; included: number; billable: number; cost: number; price: number } {
   const pageCount = modules.reduce(
-    (n, m) => (m.quantity > 0 && !isOptionModule(m) && m.id !== EXTRA_RETOUCHES_ID ? n + m.quantity : n),
+    (n, m) => (m.quantity > 0 && !isOptionModule(m) && !isIncludedService(m) && m.id !== EXTRA_RETOUCHES_ID ? n + m.quantity : n),
     0
   );
   const included = pageCount * settings.retouchesIncludedPerPage;

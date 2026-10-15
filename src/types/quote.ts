@@ -41,6 +41,10 @@ export interface ClientMetadata {
 export interface PricingSettings {
   mode: PricingMode;
   tjmSuzali: number;          // TJM interne de référence (€/j)
+  /** Modèle de prix facturé au client par le partenaire (défaut : forfait, prix saisi par ligne) */
+  clientMode?: PricingMode;
+  /** TJM facturé au client en mode « Temps passé » (défaut : tarif d'achat) */
+  clientTjm?: number;
   partnerMarginPercent: number; // Marge commerciale partenaire (%)
   bufferPercent: number;        // Marge de sécurité appliquée au délai (%)
   retouchesIncludedPerPage: number; // Retouches comprises dans le forfait, par page
@@ -78,8 +82,22 @@ export interface QuoteCalculations {
   depositAmount: number;
 }
 
+/**
+ * Lecture des prix d'un devis :
+ * - resale : prix d'achat de la régie + prix client saisi par le partenaire
+ * - listed : devis d'un client du revendeur, vu par le revendeur ou la régie (un prix par ligne, modifiable)
+ * - fixed  : même devis vu par le client du revendeur (un prix par ligne, en lecture seule)
+ */
+export type PricingView = 'resale' | 'listed' | 'fixed';
+
 export type AccountRole = 'admin' | 'owner' | 'partner';
 export type QuoteStatus = 'draft' | 'sent' | 'signed';
+
+/** Tarifs fixés par le revendeur pour l'un de ses clients : prix HT unitaire par livrable (id de la grille) et par retouche en plus */
+export interface PriceList {
+  prices: Record<string, number>;
+  retouchPrice: number;
+}
 
 export interface Account {
   id: string;
@@ -95,6 +113,10 @@ export interface Account {
   active: boolean;
   /** Mot de passe provisoire : à remplacer avant toute autre action */
   mustChangePassword?: boolean;
+  /** Client du revendeur : ne voit jamais le prix d'achat et ne fixe aucun prix, il applique la grille du revendeur */
+  managed?: boolean;
+  /** Grille de prix d'un client du revendeur (absente pour les autres comptes) */
+  priceList?: PriceList | null;
 }
 
 export interface PartnerAccount extends Account {
@@ -112,6 +134,8 @@ export interface QuoteSummary {
   totalHt: number;
   accountId: string;
   accountName: string;
+  /** Devis d'un client du revendeur : un seul prix par ligne, fixé par la grille du revendeur */
+  accountManaged: boolean;
   updatedAt: string;
   createdAt: string;
   signedAt: string | null;

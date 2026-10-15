@@ -1,21 +1,26 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Check, Copy, Plus, Sparkles, Users } from 'lucide-react';
-import type { PartnerAccount } from '../../types/quote';
+import { Check, Copy, Plus, Sparkles, Tag, Users } from 'lucide-react';
+import type { Account, PartnerAccount } from '../../types/quote';
 import { listPartners, savePartner, errorMessage, type AccountProfile } from '../../lib/api';
 import { formatEuros } from '../../utils/formatters';
 import { getInitials } from '../../lib/initials';
+import { completePriceList } from '../../data/priceModel';
+import { PriceListDialog } from './PriceListDialog';
 import { Button } from '../ui/button';
 import { Field, Input } from '../ui/input';
 import { Badge, Card, Dialog, EmptyState, Monogram, Notice, PageHeader } from '../ui/display';
 
 interface PartnersPanelProps {
   token: string;
+  account: Account;
 }
 
 interface FormState extends AccountProfile {
   id: string | null;
   active: boolean;
   password: string;
+  /** Client du revendeur : prix imposés par sa grille, aucun prix d'achat visible */
+  managed: boolean;
 }
 
 const emptyForm: FormState = {
@@ -30,6 +35,7 @@ const emptyForm: FormState = {
   siret: '',
   active: true,
   password: '',
+  managed: false,
 };
 
 /** Mot de passe aléatoire de 12 caractères, sans caractères ambigus */
@@ -41,7 +47,7 @@ const generatePassword = (): string => {
 
 const th = 'px-5 py-2.5 text-xs font-medium text-muted';
 
-export const PartnersPanel: React.FC<PartnersPanelProps> = ({ token }) => {
+export const PartnersPanel: React.FC<PartnersPanelProps> = ({ token, account }) => {
   const [partners, setPartners] = useState<PartnerAccount[] | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +55,10 @@ export const PartnersPanel: React.FC<PartnersPanelProps> = ({ token }) => {
   const [saving, setSaving] = useState(false);
   const [created, setCreated] = useState<{ name: string; email: string; password: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [pricesFor, setPricesFor] = useState<PartnerAccount | null>(null);
+
+  // Le revendeur n'a que des clients ; la régie choisit, compte par compte
+  const isOwner = account.role === 'owner';
 
   const refresh = useCallback(async () => {
     try {
@@ -78,7 +88,13 @@ export const PartnersPanel: React.FC<PartnersPanelProps> = ({ token }) => {
     setFormError(null);
     try {
       const password = form.password === '' ? null : form.password;
-      await savePartner(token, form.id, form, password);
+      const becomesManaged = isOwner || form.managed;
+      const wasManaged = form.id ? partners?.find((p) => p.id === form.id)?.managed === true : false;
+      await savePartner(token, form.id, form, password, {
+        managed: isOwner ? null : form.managed,
+        // un nouveau client part du modèle RM-2026-0013 : le revendeur ajuste ensuite ses prix
+        priceList: becomesManaged && !wasManaged ? completePriceList(null) : null,
+      });
       if (password) setCreated({ name: form.name, email: form.email, password });
       setForm(null);
       await refresh();
@@ -103,11 +119,15 @@ export const PartnersPanel: React.FC<PartnersPanelProps> = ({ token }) => {
   return (
     <div>
       <PageHeader
-        title="Partenaires"
-        description="Chaque partenaire a son espace, son e-mail de connexion et son tarif journalier."
+        title={isOwner ? 'Clients' : 'Partenaires'}
+        description={
+          isOwner
+            ? 'Vos clients : chacun a son espace et ne voit que les prix de sa grille tarifaire, sans prix d’achat.'
+            : 'Chaque partenaire a son espace, son e-mail de connexion et son tarif journalier ; un client du revendeur applique la grille de prix du revendeur.'
+        }
         actions={
           <Button variant="primary" icon={<Plus className="size-4" aria-hidden="true" />} onClick={() => openForm({ ...emptyForm })}>
-            Nouveau partenaire
+            {isOwner ? 'Nouveau client' : 'Nouveau partenaire'}
           </Button>
         }
       />
@@ -143,26 +163,26 @@ export const PartnersPanel: React.FC<PartnersPanelProps> = ({ token }) => {
         ) : partners.length === 0 ? (
           <EmptyState
             icon={<Users />}
-            title="Aucun partenaire"
+            title={isOwner ? 'Aucun client' : 'Aucun partenaire'}
             action={
               <Button variant="primary" icon={<Plus className="size-4" aria-hidden="true" />} onClick={() => openForm({ ...emptyForm })}>
-                Créer le premier partenaire
+                {isOwner ? 'Créer le premier client' : 'Créer le premier partenaire'}
               </Button>
             }
           >
-            Un partenaire reçoit un e-mail de connexion, un mot de passe provisoire et son propre tarif journalier.
+            Un compte reçoit un e-mail de connexion et un mot de passe provisoire.
           </EmptyState>
         ) : (
           <div className="overflow-x-auto scroll-thin">
             <table className="w-full min-w-[640px] text-left text-ui">
               <thead>
                 <tr className="border-b border-line bg-surface-2">
-                  <th scope="col" className={th}>Partenaire</th>
-                  <th scope="col" className={`${th} text-right`}>Tarif / jour</th>
+                  <th scope="col" className={th}>{isOwner ? 'Client' : 'Partenaire'}</th>
+                  <th scope="col" className={`${th} text-right`}>{isOwner ? 'Tarifs' : 'Tarif / jour'}</th>
                   <th scope="col" className={`${th} text-right`}>Devis</th>
                   <th scope="col" className={`${th} text-right`}>Signés</th>
                   <th scope="col" className={th}>Statut</th>
-                  <th scope="col" className="w-24">
+                  <th scope="col" className="w-44">
                     <span className="sr-only">Actions</span>
                   </th>
                 </tr>
@@ -179,14 +199,27 @@ export const PartnersPanel: React.FC<PartnersPanelProps> = ({ token }) => {
                         </div>
                       </div>
                     </td>
-                    <td className="tabular px-5 py-3 text-right font-mono">{formatEuros(p.dailyRate, false)}</td>
+                    <td className="tabular px-5 py-3 text-right font-mono">
+                      {p.managed ? (
+                        <Badge tone="accent" icon={<Tag className="size-3" aria-hidden="true" />}>
+                          Grille revendeur
+                        </Badge>
+                      ) : (
+                        formatEuros(p.dailyRate, false)
+                      )}
+                    </td>
                     <td className="tabular px-5 py-3 text-right font-mono">{p.quoteCount}</td>
                     <td className="tabular px-5 py-3 text-right font-mono">{p.signedCount}</td>
                     <td className="px-5 py-3">
                       <Badge tone={p.active ? 'done' : 'neutral'}>{p.active ? 'Actif' : 'Désactivé'}</Badge>
                     </td>
-                    <td className="py-3 pr-4 text-right">
-                      <Button variant="ghost" size="sm" onClick={() => openForm({ ...p, password: '' })}>
+                    <td className="whitespace-nowrap py-3 pr-4 text-right">
+                      {p.managed && (
+                        <Button variant="secondary" size="sm" onClick={() => setPricesFor(p)}>
+                          Tarifs
+                        </Button>
+                      )}{' '}
+                      <Button variant="ghost" size="sm" onClick={() => openForm({ ...p, managed: p.managed === true, password: '' })}>
                         Modifier
                       </Button>
                     </td>
@@ -198,8 +231,21 @@ export const PartnersPanel: React.FC<PartnersPanelProps> = ({ token }) => {
         )}
       </Card>
 
+      {pricesFor && (
+        <PriceListDialog
+          token={token}
+          partner={pricesFor}
+          others={(partners ?? []).filter((p) => p.id !== pricesFor.id)}
+          onClose={() => setPricesFor(null)}
+          onSaved={() => {
+            setPricesFor(null);
+            void refresh();
+          }}
+        />
+      )}
+
       {form && (
-        <Dialog title={form.id ? 'Modifier le partenaire' : 'Nouveau partenaire'} onClose={() => setForm(null)} size="lg">
+        <Dialog title={form.id ? 'Modifier le compte' : isOwner ? 'Nouveau client' : 'Nouveau partenaire'} onClose={() => setForm(null)} size="lg">
           <form onSubmit={handleSave} className="p-5">
             {formError && (
               <Notice tone="danger" role="alert" className="mb-4">
@@ -219,21 +265,38 @@ export const PartnersPanel: React.FC<PartnersPanelProps> = ({ token }) => {
                   <Input id={id} type="email" required autoComplete="off" value={form.email} onChange={(e) => set('email', e.target.value)} />
                 )}
               </Field>
-              <Field label="Tarif journalier (€ HT / jour)">
-                {(id) => (
-                  <Input
-                    id={id}
-                    type="number"
-                    min={0}
-                    max={5000}
-                    step={5}
-                    required
-                    className="font-mono"
-                    value={form.dailyRate}
-                    onChange={(e) => set('dailyRate', Number(e.target.value))}
-                  />
-                )}
-              </Field>
+              {!isOwner && (
+                <Field label="Type de compte">
+                  {(id) => (
+                    <select
+                      id={id}
+                      value={form.managed ? 'managed' : 'independent'}
+                      onChange={(e) => set('managed', e.target.value === 'managed')}
+                      className="h-9 w-full rounded-md border border-control bg-surface-2 px-2 text-ui text-ink"
+                    >
+                      <option value="independent">Partenaire : fixe ses propres prix</option>
+                      <option value="managed">Client du revendeur : grille de prix imposée</option>
+                    </select>
+                  )}
+                </Field>
+              )}
+              {!form.managed && !isOwner && (
+                <Field label="Tarif journalier (€ HT / jour)">
+                  {(id) => (
+                    <Input
+                      id={id}
+                      type="number"
+                      min={0}
+                      max={5000}
+                      step={5}
+                      required
+                      className="font-mono"
+                      value={form.dailyRate}
+                      onChange={(e) => set('dailyRate', Number(e.target.value))}
+                    />
+                  )}
+                </Field>
+              )}
               <Field label="Contact">
                 {(id) => <Input id={id} value={form.contactName} onChange={(e) => set('contactName', e.target.value)} />}
               </Field>

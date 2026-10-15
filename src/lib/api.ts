@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import type {
   Account,
   PartnerAccount,
+  PriceList,
   QuoteSummary,
   QuoteRecord,
   QuoteData,
@@ -52,6 +53,9 @@ export const ERROR_LABELS: Record<string, string> = {
   name_required: 'Le nom est requis.',
   invalid_rate: 'Tarif journalier invalide.',
   invalid_signature: 'Signature invalide.',
+  invalid_price_list: 'Grille de prix invalide : chaque prix doit être un montant positif.',
+  price_list_required: 'Une grille de prix est requise pour un client du revendeur.',
+  no_reseller: 'Aucun compte revendeur actif pour rattacher ce client.',
 };
 
 export const errorMessage = (e: unknown): string =>
@@ -107,11 +111,16 @@ export const updateAccount = (token: string, p: AccountProfile) =>
 export const listPartners = (token: string) =>
   call<PartnerAccount[]>('app_partners_list', { p_token: token });
 
+/**
+ * `managed` : compte client du revendeur (prix imposés par sa grille). Ignoré pour le revendeur, dont tous les comptes le sont ;
+ * `null` conserve l'état actuel. `priceList` : grille initiale d'un nouveau client (`null` conserve la grille actuelle).
+ */
 export const savePartner = (
   token: string,
   id: string | null,
   p: AccountProfile & { active: boolean },
-  password: string | null
+  password: string | null,
+  options: { managed: boolean | null; priceList: PriceList | null } = { managed: null, priceList: null }
 ) =>
   call<Account>('app_partner_save', {
     p_token: token,
@@ -126,7 +135,12 @@ export const savePartner = (
     p_siret: p.siret,
     p_password: password,
     p_active: p.active,
+    p_managed: options.managed,
+    p_price_list: options.priceList,
   });
+
+export const savePartnerPrices = (token: string, id: string, priceList: PriceList) =>
+  call<Account>('app_partner_prices_save', { p_token: token, p_id: id, p_price_list: priceList });
 
 // ------------------------------------------------------------------ quotes --
 
