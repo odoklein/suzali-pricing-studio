@@ -7,6 +7,7 @@ import {
   getUnitCost,
   sumModules,
   retouchBilling,
+  retouchClientPrice,
   isOptionModule,
 } from '../../utils/formatters';
 import { cn } from '../../lib/cn';
@@ -381,8 +382,9 @@ export const PageTable: React.FC<PageTableProps> = ({
       <p className="flex items-start gap-2 border-t border-line px-5 py-3 text-xs text-muted">
         <Info className="mt-px size-3.5 shrink-0 text-faint" aria-hidden="true" />
         <span>
-          {settings.retouchesIncludedPerPage} retouches incluses par page ({retouches.included} au total) ; toute retouche supplémentaire est
-          facturée {formatEuros(settings.retouchUnitPrice, false)}. Les retouches et la TVA ({settings.vatRate} %) s’ajoutent au total ci-dessus.
+          {settings.retouchesIncludedPerPage} retouches incluses par page, soit {retouches.included} pour {retouches.pageCount} page
+          {retouches.pageCount > 1 ? 's' : ''}. Au-delà, chaque retouche en plus est facturée {formatEuros(retouchClientPrice(settings), false)}. La
+          TVA ({settings.vatRate} %) s’ajoute au total.
         </span>
       </p>
     </Card>

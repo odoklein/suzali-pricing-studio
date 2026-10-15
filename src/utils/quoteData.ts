@@ -7,7 +7,14 @@ import type {
   QuoteData,
 } from '../types/quote';
 import { initialMetadata, initialModules, initialSettings } from '../data/initialModules';
-import { computeQuoteCalculations, getClientUnitPrice, retouchBilling, isOptionModule, EXTRA_RETOUCHES_ID } from './formatters';
+import {
+  computeQuoteCalculations,
+  getClientUnitPrice,
+  retouchBilling,
+  retouchClientPrice,
+  isOptionModule,
+  EXTRA_RETOUCHES_ID,
+} from './formatters';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -37,7 +44,7 @@ export function buildClientSnapshot(
       category: 'content',
       description: `Retouches demandées au-delà des ${retouches.included} incluses (${settings.retouchesIncludedPerPage} par page).`,
       includedDetails: '',
-      basePrice: settings.retouchUnitPrice,
+      basePrice: retouchClientPrice(settings),
       days: 0,
       quantity: retouches.billable,
       optional: false,
@@ -52,7 +59,9 @@ export function buildClientSnapshot(
       partnerMarginPercent: 0,
       bufferPercent: settings.bufferPercent,
       retouchesIncludedPerPage: settings.retouchesIncludedPerPage,
-      retouchUnitPrice: settings.retouchUnitPrice,
+      // le client ne connaît que le prix client : jamais le prix d'achat
+      retouchUnitPrice: retouchClientPrice(settings),
+      retouchClientPrice: retouchClientPrice(settings),
       retouchesRequested: 0,
       vatRate: settings.vatRate,
       discountPercent: 0,

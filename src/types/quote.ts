@@ -44,7 +44,8 @@ export interface PricingSettings {
   partnerMarginPercent: number; // Marge commerciale partenaire (%)
   bufferPercent: number;        // Marge de sécurité appliquée au délai (%)
   retouchesIncludedPerPage: number; // Retouches comprises dans le forfait, par page
-  retouchUnitPrice: number;     // Prix d'une retouche supplémentaire (€ HT)
+  retouchUnitPrice: number;     // Prix d'achat d'une retouche supplémentaire (€ HT)
+  retouchClientPrice?: number;  // Prix client d'une retouche supplémentaire (défaut : prix d'achat)
   retouchesRequested: number;   // Retouches demandées au total (globales)
   vatRate: number;              // TVA standard (ex: 20%)
   /** Hérité des anciens devis : plus exposé ni appliqué */
@@ -62,7 +63,10 @@ export interface QuoteCalculations {
   pageCount: number;
   retouchesIncluded: number;
   retouchesBillable: number;
+  /** Retouches facturables au prix d'achat */
   retouchesCost: number;
+  /** Retouches facturables au prix client */
+  retouchesPrice: number;
   baseSuzaliCostHT: number;
   partnerMarginAmount: number;
   /** Marge après remise : ce que le partenaire gagne réellement */

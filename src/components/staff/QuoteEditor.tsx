@@ -70,6 +70,8 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({ token, account, quoteI
       const rec = await getQuote(token, quoteId);
       const md: ClientMetadata = { ...initialMetadata, ...rec.data.metadata, quoteNumber: rec.reference };
       const st: PricingSettings = { ...initialSettings, ...rec.data.settings };
+      // Le tarif journalier d'un partenaire est fixé par la régie : le devis suit toujours celui du compte
+      if (!canEditRate) st.tjmSuzali = account.dailyRate;
       const mods = rec.data.modules ?? [];
       recordRef.current = rec;
       lastSaved.current = JSON.stringify({ modules: mods, settings: st, metadata: md });
@@ -84,7 +86,7 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({ token, account, quoteI
     } catch (e) {
       setLoadError(errorMessage(e));
     }
-  }, [token, quoteId]);
+  }, [token, quoteId, canEditRate, account.dailyRate]);
 
   useEffect(() => {
     void load();
@@ -393,7 +395,6 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({ token, account, quoteI
               <QuoteSummary
                 currentRole={uiRole}
                 canEditRate={canEditRate}
-                accountDailyRate={account.dailyRate}
                 settings={settings}
                 calculations={calculations}
                 metadata={metadata}

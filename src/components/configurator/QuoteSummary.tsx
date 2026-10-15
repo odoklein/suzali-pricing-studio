@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Check, Link2, Minus, Plus } from 'lucide-react';
 import type { ClientMetadata, PricingMode, PricingSettings, QuoteCalculations, UserRole } from '../../types/quote';
-import { formatDays, formatEuros, formatPercent } from '../../utils/formatters';
+import { formatDays, formatEuros, formatPercent, retouchClientPrice } from '../../utils/formatters';
 import { cn } from '../../lib/cn';
 import { NumberInput } from '../ui/NumberInput';
 import { Button } from '../ui/button';
@@ -11,8 +11,6 @@ interface QuoteSummaryProps {
   currentRole: UserRole;
   /** Peut modifier le tarif journalier de ce devis (propriétaire / régie) */
   canEditRate: boolean;
-  /** Tarif journalier du compte connecté, en lecture seule quand il n'est pas modifiable ici */
-  accountDailyRate: number;
   settings: PricingSettings;
   calculations: QuoteCalculations;
   metadata: ClientMetadata;
@@ -42,7 +40,6 @@ function Figure({ label, value, hint, tone }: { label: string; value: string; hi
 export const QuoteSummary: React.FC<QuoteSummaryProps> = ({
   currentRole,
   canEditRate,
-  accountDailyRate,
   settings,
   calculations,
   metadata,
@@ -106,7 +103,11 @@ export const QuoteSummary: React.FC<QuoteSummaryProps> = ({
           />
         )}
         {!isAdmin && (
-          <Figure label="Votre tarif journalier" value={`${formatEuros(accountDailyRate, false)} / j`} hint="Défini par la régie" />
+          <Figure
+            label="Votre tarif journalier"
+            value={`${formatEuros(settings.tjmSuzali, false)} / j`}
+            hint={settings.mode === 'tjm' ? 'Appliqué à ce devis' : 'Appliqué en mode « Temps passé »'}
+          />
         )}
       </dl>
 
@@ -147,27 +148,47 @@ export const QuoteSummary: React.FC<QuoteSummaryProps> = ({
           {calculations.retouchesIncluded} incluses ({settings.retouchesIncludedPerPage} par page) ·{' '}
           {calculations.retouchesBillable > 0 ? (
             <span className="font-medium text-ink-2">
-              {calculations.retouchesBillable} facturée{calculations.retouchesBillable > 1 ? 's' : ''} {formatEuros(calculations.retouchesCost, false)}
+              {calculations.retouchesBillable} facturée{calculations.retouchesBillable > 1 ? 's' : ''} {formatEuros(calculations.retouchesPrice, false)}
             </span>
           ) : (
             'aucune facturée'
           )}
         </p>
+
+        <div className="mt-3 flex items-center justify-between gap-3 border-t border-line pt-3">
+          <label htmlFor="retouche-prix-client" className="text-ui text-ink-2">
+            Votre prix par retouche en plus
+          </label>
+          <span className="inline-flex items-center gap-1.5">
+            <NumberInput
+              id="retouche-prix-client"
+              min={0}
+              max={1000}
+              value={retouchClientPrice(settings)}
+              onValueChange={(retouchClientPrice) => onUpdateSettings({ retouchClientPrice })}
+              className={cn(miniInput, 'w-16')}
+            />
+            <span className="text-xs text-muted">€</span>
+          </span>
+        </div>
+        <p className="mt-1.5 text-xs text-muted">
+          {isAdmin ? 'Coût' : "Prix d'achat"} : {formatEuros(settings.retouchUnitPrice, false)} par retouche en plus.
+        </p>
       </div>
 
-      {isAdmin && (
-        <div className="space-y-3 border-t border-line px-5 py-4">
-          <p className="text-xs font-medium text-muted">Réglages régie</p>
-          <SegmentedControl<PricingMode>
-            size="sm"
-            label="Modèle de calcul"
-            value={settings.mode}
-            onChange={(mode) => onUpdateSettings({ mode })}
-            options={[
-              { value: 'forfait', label: 'Forfait par page' },
-              { value: 'tjm', label: 'Temps passé (TJM)' },
-            ]}
-          />
+      <div className="space-y-3 border-t border-line px-5 py-4">
+        <p className="text-xs font-medium text-muted">{isAdmin ? 'Réglages régie' : "Calcul du prix d'achat"}</p>
+        <SegmentedControl<PricingMode>
+          size="sm"
+          label="Modèle de calcul"
+          value={settings.mode}
+          onChange={(mode) => onUpdateSettings({ mode })}
+          options={[
+            { value: 'forfait', label: 'Forfait par page' },
+            { value: 'tjm', label: 'Temps passé (TJM)' },
+          ]}
+        />
+        {isAdmin && (
           <div className="flex items-center justify-between gap-3">
             <label htmlFor="buffer-percent" className="text-ui text-ink-2">
               Marge de sécurité
@@ -184,11 +205,13 @@ export const QuoteSummary: React.FC<QuoteSummaryProps> = ({
               <span className="text-xs text-muted">%</span>
             </span>
           </div>
-          {canEditRate && settings.mode === 'tjm' && (
-            <div className="flex items-center justify-between gap-3">
-              <label htmlFor="tjm" className="text-ui text-ink-2">
-                TJM
-              </label>
+        )}
+        {settings.mode === 'tjm' && (
+          <div className="flex items-center justify-between gap-3">
+            <label htmlFor="tjm" className="text-ui text-ink-2">
+              TJM
+            </label>
+            {canEditRate ? (
               <span className="inline-flex items-center gap-1.5">
                 <NumberInput
                   id="tjm"
@@ -200,10 +223,14 @@ export const QuoteSummary: React.FC<QuoteSummaryProps> = ({
                 />
                 <span className="text-xs text-muted">€/j</span>
               </span>
-            </div>
-          )}
-        </div>
-      )}
+            ) : (
+              <span id="tjm" className="tabular font-mono text-ui font-semibold text-ink">
+                {formatEuros(settings.tjmSuzali, false)} / j
+              </span>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="border-t border-line bg-surface-2 p-4">
         <Button

@@ -28,18 +28,27 @@ export function sumModules(mods: PageModule[], settings: PricingSettings): { pri
   );
 }
 
+/** Prix client d'une retouche supplémentaire : celui du partenaire, sinon le prix d'achat */
+export const retouchClientPrice = (settings: PricingSettings): number => settings.retouchClientPrice ?? settings.retouchUnitPrice;
+
 /** Retouches comprises dans le forfait et retouches facturables (demandées au-delà du forfait) */
 export function retouchBilling(
   modules: PageModule[],
   settings: PricingSettings
-): { pageCount: number; included: number; billable: number; cost: number } {
+): { pageCount: number; included: number; billable: number; cost: number; price: number } {
   const pageCount = modules.reduce(
     (n, m) => (m.quantity > 0 && !isOptionModule(m) && m.id !== EXTRA_RETOUCHES_ID ? n + m.quantity : n),
     0
   );
   const included = pageCount * settings.retouchesIncludedPerPage;
   const billable = Math.max(0, Math.round(settings.retouchesRequested) - included);
-  return { pageCount, included, billable, cost: billable * settings.retouchUnitPrice };
+  return {
+    pageCount,
+    included,
+    billable,
+    cost: billable * settings.retouchUnitPrice,
+    price: billable * retouchClientPrice(settings),
+  };
 }
 
 export interface ScheduleStep {
@@ -108,7 +117,7 @@ export function addDays(dateStr: string, daysToAdd: number): string {
 /**
  * Calcul rigoureux des montants, marges et charges.
  * Le délai applique la marge de sécurité à la charge brute ; les retouches facturables
- * sont refacturées à l'identique (sans marge ni jours).
+ * s'achètent au tarif de la régie et se vendent au prix client du partenaire (sans jours).
  */
 export function computeQuoteCalculations(
   modules: PageModule[],
@@ -131,7 +140,7 @@ export function computeQuoteCalculations(
 
   const retouches = retouchBilling(modules, settings);
   const baseSuzaliCostHT = purchaseHT + retouches.cost;
-  const sellingPriceHT = sellingHT + retouches.cost;
+  const sellingPriceHT = sellingHT + retouches.price;
 
   const bufferDays = totalDevDays * (settings.bufferPercent / 100);
   const totalDays = totalDevDays + bufferDays;
@@ -152,6 +161,7 @@ export function computeQuoteCalculations(
     retouchesIncluded: retouches.included,
     retouchesBillable: retouches.billable,
     retouchesCost: Number(retouches.cost.toFixed(2)),
+    retouchesPrice: Number(retouches.price.toFixed(2)),
     baseSuzaliCostHT: Number(baseSuzaliCostHT.toFixed(2)),
     partnerMarginAmount: Number(partnerMarginAmount.toFixed(2)),
     netMarginAmount: Number(partnerMarginAmount.toFixed(2)),
