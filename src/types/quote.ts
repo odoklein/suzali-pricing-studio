@@ -37,6 +37,10 @@ export interface ClientMetadata {
   partnerRcs?: string;
   partnerVat?: string;
   partnerWebsite?: string;
+  /** Conditions de paiement, pénalités de retard et mentions complémentaires (défauts légaux si absents) */
+  paymentTerms?: string;
+  latePenalties?: string;
+  extraMentions?: string;
   quoteNumber: string;
   issueDate: string;
   validityDays: number;
@@ -98,6 +102,10 @@ export type PricingView = 'resale' | 'listed' | 'fixed';
 
 export type AccountRole = 'admin' | 'owner' | 'partner';
 export type QuoteStatus = 'draft' | 'sent' | 'signed';
+/** Réalisation d'un devis signé */
+export type DeliveryStatus = 'todo' | 'in_progress' | 'delivered';
+/** Échéances de paiement d'un devis : à la commande, validation des maquettes, mise en production */
+export type PaymentStep = 'order' | 'mockups' | 'production';
 
 /** Tarifs fixés par le revendeur pour l'un de ses clients : prix HT unitaire par livrable (id de la grille) et par retouche en plus */
 export interface PriceList {
@@ -125,6 +133,13 @@ export interface Account {
   rcs?: string;
   vatNumber?: string;
   website?: string;
+  /** Conditions de paiement et pénalités de retard par défaut des nouveaux devis */
+  paymentTerms?: string;
+  latePenalties?: string;
+  /** Compte archivé : masqué, sans accès, historique conservé */
+  archived?: boolean;
+  /** Logo (data URL), renvoyé seulement au titulaire du compte */
+  logo?: string | null;
   /** Client du revendeur : ne voit jamais le prix d'achat et ne fixe aucun prix, il applique la grille du revendeur */
   managed?: boolean;
   /** Grille de prix d'un client du revendeur (absente pour les autres comptes) */
@@ -152,6 +167,19 @@ export interface QuoteSummary {
   createdAt: string;
   signedAt: string | null;
   signedBy: string | null;
+  accountArchived: boolean;
+  /** Date d'envoi au client (premier passage au statut « Envoyé ») */
+  sentAt: string | null;
+  deliveryStatus: DeliveryStatus;
+  startedAt: string | null;
+  deliveredAt: string | null;
+  /** Date de réception (AAAA-MM-JJ) de chaque échéance encaissée */
+  payments: Partial<Record<PaymentStep, string>>;
+  /** Délai en jours ouvrés (charge + marge de sécurité) */
+  leadDays: number;
+  vatRate: number;
+  depositPercent: number;
+  totalTtc: number;
 }
 
 /** Version du devis exposée au client : prix de vente uniquement, jamais les coûts ni la marge. */
@@ -172,6 +200,8 @@ export interface QuoteRecord extends QuoteSummary {
   data: QuoteData;
   shareToken: string;
   signature: string | null;
+  /** Logo de l'émetteur (le revendeur pour un client du revendeur) */
+  issuerLogo: string | null;
 }
 
 export interface Issuer {
@@ -187,6 +217,7 @@ export interface Issuer {
   rcs?: string;
   vatNumber?: string;
   website?: string;
+  logo?: string | null;
 }
 
 export interface ClientQuoteView {

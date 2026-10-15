@@ -8,6 +8,7 @@ import type {
   QuoteData,
 } from '../types/quote';
 import { initialMetadata, initialModules, initialSettings } from '../data/initialModules';
+import { DEFAULT_LATE_PENALTIES, DEFAULT_PAYMENT_TERMS } from '../data/terms';
 import {
   computeQuoteCalculations,
   getClientUnitPrice,
@@ -99,6 +100,8 @@ export function issuerMetadata(account: Account): Partial<ClientMetadata> {
     partnerRcs: account.rcs ?? '',
     partnerVat: account.vatNumber ?? '',
     partnerWebsite: account.website ?? '',
+    paymentTerms: account.paymentTerms || DEFAULT_PAYMENT_TERMS,
+    latePenalties: account.latePenalties || DEFAULT_LATE_PENALTIES,
   };
 }
 

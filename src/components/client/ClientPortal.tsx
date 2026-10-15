@@ -159,7 +159,11 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({ shareToken }) => {
         <div className="no-print">
           <header className="sticky top-0 z-30 border-b border-line bg-surface/85 backdrop-blur">
             <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 sm:px-6">
-              <Monogram label={getInitials(quote.issuer.name)} size={28} />
+              {quote.issuer.logo ? (
+                <img src={quote.issuer.logo} alt={quote.issuer.name} className="h-7 max-w-[120px] object-contain" />
+              ) : (
+                <Monogram label={getInitials(quote.issuer.name)} size={28} />
+              )}
               <div className="min-w-0 leading-tight">
                 <p className="truncate text-ui font-semibold">{quote.issuer.name}</p>
                 {quote.issuer.tagline && <p className="truncate text-xs text-muted">{quote.issuer.tagline}</p>}

@@ -18,6 +18,7 @@ import { ConfigControls } from '../configurator/ConfigControls';
 import { PageTable } from '../configurator/PageTable';
 import { DevisOfficialA4 } from '../pdf/DevisOfficialA4';
 import { StatusBadge } from './Dashboard';
+import { QuoteFollowUp } from './QuoteFollowUp';
 import { Button, IconButton, Spinner } from '../ui/button';
 import { Kbd, Notice } from '../ui/display';
 import { ArrowLeft, Check, CircleAlert, Eye, Mail, Printer } from 'lucide-react';
@@ -292,6 +293,7 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({ token, account, quoteI
     settings: clientView.settings,
     calculations: computeQuoteCalculations(clientView.modules, clientView.settings, metadata.depositPercentage),
     signed: signedInfo,
+    logo: record.issuerLogo,
   };
 
   return (
@@ -379,6 +381,21 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({ token, account, quoteI
             <Notice tone="done">Devis signé par {record.signedBy} : il est verrouillé et ne peut plus être modifié.</Notice>
           )}
         </div>
+
+        {locked && (
+          <div className="mb-6">
+            <QuoteFollowUp
+              token={token}
+              quote={record}
+              canEdit={account.role === 'owner' || isAdmin}
+              onChange={(q) => {
+                const next = { ...record, ...q };
+                recordRef.current = next;
+                setRecord(next);
+              }}
+            />
+          </div>
+        )}
 
         <fieldset disabled={locked} className="m-0 min-w-0 border-0 p-0">
           <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">

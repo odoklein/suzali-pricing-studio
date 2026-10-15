@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import type { Account } from '../../types/quote';
-import { updateAccount, errorMessage, type OwnProfile } from '../../lib/api';
+import { ImageUp, Trash2 } from 'lucide-react';
+import { updateAccount, saveLogo, errorMessage, type OwnProfile } from '../../lib/api';
+import { imageToLogoDataUrl, LogoError } from '../../lib/logo';
+import { DEFAULT_LATE_PENALTIES, DEFAULT_PAYMENT_TERMS } from '../../data/terms';
 import { ChangePasswordForm } from '../portal/ChangePasswordForm';
 import { Button } from '../ui/button';
-import { Field, Input } from '../ui/input';
+import { Field, Input, Textarea } from '../ui/input';
 import { Card, Notice, PageHeader } from '../ui/display';
 
 interface ProfilePanelProps {
@@ -50,7 +53,10 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ token, account, onUp
     rcs: account.rcs ?? '',
     vatNumber: account.vatNumber ?? '',
     website: account.website ?? '',
+    paymentTerms: account.paymentTerms ?? '',
+    latePenalties: account.latePenalties ?? '',
   });
+  const [logoBusy, setLogoBusy] = useState(false);
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -68,6 +74,38 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ token, account, onUp
       setMessage({ kind: 'error', text: errorMessage(err) });
     } finally {
       setBusy(false);
+    }
+  };
+
+  const pickLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setLogoBusy(true);
+    setMessage(null);
+    try {
+      const logo = await imageToLogoDataUrl(file);
+      await saveLogo(token, logo);
+      onUpdated({ ...account, logo });
+      setMessage({ kind: 'ok', text: 'Logo enregistré. Il figure sur vos devis et sur l’écran de connexion.' });
+    } catch (err) {
+      setMessage({ kind: 'error', text: err instanceof LogoError ? err.message : errorMessage(err) });
+    } finally {
+      setLogoBusy(false);
+    }
+  };
+
+  const removeLogo = async () => {
+    setLogoBusy(true);
+    setMessage(null);
+    try {
+      await saveLogo(token, null);
+      onUpdated({ ...account, logo: null });
+      setMessage({ kind: 'ok', text: 'Logo supprimé.' });
+    } catch (err) {
+      setMessage({ kind: 'error', text: errorMessage(err) });
+    } finally {
+      setLogoBusy(false);
     }
   };
 
@@ -100,6 +138,38 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ token, account, onUp
         </Notice>
       )}
 
+      {!account.managed && (
+        <Card className="mt-6 p-5">
+          <h2 className="text-ui font-semibold">Logo</h2>
+          <p className="mt-1 text-ui text-muted">
+            Affiché sur vos devis et, pour le revendeur, sur l’écran de connexion. PNG, JPEG ou WebP, redimensionné automatiquement.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-4">
+            <div className="grid h-20 w-56 place-items-center rounded-lg border border-dashed border-line-strong bg-surface-2 p-2">
+              {account.logo ? (
+                <img src={account.logo} alt={`Logo ${account.name}`} className="max-h-full max-w-full object-contain" />
+              ) : (
+                <span className="text-xs text-muted">Aucun logo</span>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <label
+                className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-line bg-surface px-3 text-ui font-medium shadow-xs transition-colors hover:bg-surface-2 focus-within:shadow-[var(--ring)] pointer-coarse:h-11 ${logoBusy ? 'pointer-events-none opacity-60' : ''}`}
+              >
+                <ImageUp className="size-4" aria-hidden="true" />
+                {account.logo ? 'Remplacer' : 'Ajouter un logo'}
+                <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={pickLogo} disabled={logoBusy} />
+              </label>
+              {account.logo && (
+                <Button icon={<Trash2 className="size-4" aria-hidden="true" />} onClick={() => void removeLogo()} disabled={logoBusy}>
+                  Supprimer
+                </Button>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
+
       <form onSubmit={save} className="mt-6 space-y-6">
         <Card className="p-5">
           <h2 className="text-ui font-semibold">Société et mentions légales</h2>
@@ -126,6 +196,23 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ token, account, onUp
                 )}
               </Field>
             )}
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <h2 className="text-ui font-semibold">Conditions par défaut des devis</h2>
+          <p className="mt-1 text-ui text-muted">Reprises sur chaque nouveau devis ; modifiables devis par devis. Laissées vides, les textes ci-dessous s'impriment.</p>
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Field label="Conditions de paiement">
+              {(id) => (
+                <Textarea id={id} rows={4} placeholder={DEFAULT_PAYMENT_TERMS} value={profile.paymentTerms} onChange={(e) => set('paymentTerms', e.target.value)} />
+              )}
+            </Field>
+            <Field label="Pénalités de retard">
+              {(id) => (
+                <Textarea id={id} rows={4} placeholder={DEFAULT_LATE_PENALTIES} value={profile.latePenalties} onChange={(e) => set('latePenalties', e.target.value)} />
+              )}
+            </Field>
           </div>
         </Card>
 

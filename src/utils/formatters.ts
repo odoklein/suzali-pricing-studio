@@ -1,4 +1,4 @@
-import type { PageModule, PricingMode, PricingSettings, QuoteCalculations } from '../types/quote';
+import type { PageModule, PaymentStep, PricingMode, PricingSettings, QuoteCalculations } from '../types/quote';
 
 /** Identifiant de la ligne « retouches supplémentaires », ajoutée au devis client */
 export const EXTRA_RETOUCHES_ID = 'extra-retouches';
@@ -62,6 +62,7 @@ export function retouchBilling(
 }
 
 export interface ScheduleStep {
+  key: PaymentStep;
   label: string;
   percent: number;
 }
@@ -71,9 +72,9 @@ export function paymentSchedule(depositPercent: number): ScheduleStep[] {
   const deposit = Math.min(100, Math.max(0, depositPercent));
   const middle = Math.min(40, 100 - deposit);
   return [
-    { label: 'À la commande', percent: deposit },
-    { label: 'Validation des maquettes', percent: middle },
-    { label: 'Mise en production', percent: 100 - deposit - middle },
+    { key: 'order' as const, label: 'À la commande', percent: deposit },
+    { key: 'mockups' as const, label: 'Validation des maquettes', percent: middle },
+    { key: 'production' as const, label: 'Mise en production', percent: 100 - deposit - middle },
   ].filter((s) => s.percent > 0);
 }
 

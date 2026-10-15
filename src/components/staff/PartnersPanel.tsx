@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Check, Copy, Plus, Sparkles, Tag, Users } from 'lucide-react';
+import { Archive, ArchiveRestore, Check, Copy, Plus, Power, Sparkles, Tag, Users } from 'lucide-react';
 import type { Account, PartnerAccount } from '../../types/quote';
-import { listPartners, savePartner, errorMessage, type AccountProfile } from '../../lib/api';
+import { listPartners, savePartner, setPartnerState, errorMessage, type AccountProfile } from '../../lib/api';
 import { formatEuros } from '../../utils/formatters';
 import { getInitials } from '../../lib/initials';
 import { generatePassword } from '../../lib/password';
@@ -9,7 +9,8 @@ import { completePriceList } from '../../data/priceModel';
 import { PriceListDialog } from './PriceListDialog';
 import { Button } from '../ui/button';
 import { Field, Input } from '../ui/input';
-import { Badge, Card, Dialog, EmptyState, Monogram, Notice, PageHeader } from '../ui/display';
+import { Badge, Card, Dialog, EmptyState, Monogram, Notice, PageHeader, chipActive, chipClass } from '../ui/display';
+import { cn } from '../../lib/cn';
 
 interface PartnersPanelProps {
   token: string;
@@ -50,6 +51,8 @@ export const PartnersPanel: React.FC<PartnersPanelProps> = ({ token, account }) 
   const [created, setCreated] = useState<{ name: string; email: string; password: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [pricesFor, setPricesFor] = useState<PartnerAccount | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [stateBusy, setStateBusy] = useState<string | null>(null);
 
   // Le revendeur n'a que des clients ; la régie choisit, compte par compte
   const isOwner = account.role === 'owner';
@@ -65,6 +68,10 @@ export const PartnersPanel: React.FC<PartnersPanelProps> = ({ token, account }) 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const archivedCount = (partners ?? []).filter((p) => p.archived).length;
+  const visible = (partners ?? []).filter((p) => (showArchived ? p.archived : !p.archived));
+  const editingArchived = form?.id ? partners?.find((p) => p.id === form.id)?.archived === true : false;
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => (f ? { ...f, [key]: value } : f));
@@ -96,6 +103,20 @@ export const PartnersPanel: React.FC<PartnersPanelProps> = ({ token, account }) 
       setFormError(errorMessage(err));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const changeState = async (p: PartnerAccount, state: { active: boolean | null; archived?: boolean | null }, confirmText?: string) => {
+    if (confirmText && !window.confirm(confirmText)) return;
+    setStateBusy(p.id);
+    setError(null);
+    try {
+      await setPartnerState(token, p.id, state);
+      await refresh();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setStateBusy(null);
     }
   };
 
@@ -151,10 +172,27 @@ export const PartnersPanel: React.FC<PartnersPanelProps> = ({ token, account }) 
         </Notice>
       )}
 
-      <Card className="mt-6 overflow-hidden">
+      {partners !== null && archivedCount > 0 && (
+        <div role="group" aria-label="Filtrer les comptes" className="mt-6 flex items-center gap-1.5">
+          {([false, true] as const).map((archived) => (
+            <button
+              key={String(archived)}
+              type="button"
+              aria-pressed={showArchived === archived}
+              onClick={() => setShowArchived(archived)}
+              className={cn(chipClass, showArchived === archived && chipActive)}
+            >
+              {archived ? 'Archivés' : 'Actifs et désactivés'}
+              <span className="tabular font-normal opacity-80">{archived ? archivedCount : partners.length - archivedCount}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <Card className="mt-4 overflow-hidden">
         {partners === null ? (
           <p className="px-5 py-10 text-center text-ui text-muted">Chargement…</p>
-        ) : partners.length === 0 ? (
+        ) : visible.length === 0 ? (
           <EmptyState
             icon={<Users />}
             title={isOwner ? 'Aucun client' : 'Aucun partenaire'}
@@ -176,13 +214,13 @@ export const PartnersPanel: React.FC<PartnersPanelProps> = ({ token, account }) 
                   <th scope="col" className={`${th} text-right`}>Devis</th>
                   <th scope="col" className={`${th} text-right`}>Signés</th>
                   <th scope="col" className={th}>Statut</th>
-                  <th scope="col" className="w-44">
+                  <th scope="col" className="w-64">
                     <span className="sr-only">Actions</span>
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {partners.map((p) => (
+                {visible.map((p) => (
                   <tr key={p.id} className="transition-colors hover:bg-surface-2">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
@@ -205,17 +243,65 @@ export const PartnersPanel: React.FC<PartnersPanelProps> = ({ token, account }) 
                     <td className="tabular px-5 py-3 text-right font-mono">{p.quoteCount}</td>
                     <td className="tabular px-5 py-3 text-right font-mono">{p.signedCount}</td>
                     <td className="px-5 py-3">
-                      <Badge tone={p.active ? 'done' : 'neutral'}>{p.active ? 'Actif' : 'Désactivé'}</Badge>
+                      <Badge tone={p.archived ? 'neutral' : p.active ? 'done' : 'waiting'}>
+                        {p.archived ? 'Archivé' : p.active ? 'Actif' : 'Désactivé'}
+                      </Badge>
                     </td>
-                    <td className="whitespace-nowrap py-3 pr-4 text-right">
-                      {p.managed && (
-                        <Button variant="secondary" size="sm" onClick={() => setPricesFor(p)}>
-                          Tarifs
+                    <td className="py-3 pr-4">
+                      <div className="flex flex-wrap justify-end gap-1">
+                        {p.managed && !p.archived && (
+                          <Button variant="secondary" size="sm" onClick={() => setPricesFor(p)}>
+                            Tarifs
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="sm" onClick={() => openForm({ ...p, managed: p.managed === true, password: '' })}>
+                          Modifier
                         </Button>
-                      )}{' '}
-                      <Button variant="ghost" size="sm" onClick={() => openForm({ ...p, managed: p.managed === true, password: '' })}>
-                        Modifier
-                      </Button>
+                        {p.archived ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            loading={stateBusy === p.id}
+                            icon={<ArchiveRestore className="size-3.5" aria-hidden="true" />}
+                            onClick={() => void changeState(p, { active: null, archived: false })}
+                          >
+                            Restaurer
+                          </Button>
+                        ) : (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              loading={stateBusy === p.id}
+                              icon={<Power className="size-3.5" aria-hidden="true" />}
+                              onClick={() =>
+                                void changeState(
+                                  p,
+                                  { active: !p.active },
+                                  p.active ? `Désactiver ${p.name} ? Il ne pourra plus se connecter ; ses devis sont conservés.` : undefined
+                                )
+                              }
+                            >
+                              {p.active ? 'Désactiver' : 'Réactiver'}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              loading={stateBusy === p.id}
+                              icon={<Archive className="size-3.5" aria-hidden="true" />}
+                              onClick={() =>
+                                void changeState(
+                                  p,
+                                  { active: false, archived: true },
+                                  `Archiver ${p.name} ? Le compte est masqué et ne peut plus se connecter ; ses devis et son historique sont conservés.`
+                                )
+                              }
+                            >
+                              Archiver
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -332,15 +418,19 @@ export const PartnersPanel: React.FC<PartnersPanelProps> = ({ token, account }) 
             </div>
 
             <div className="mt-6 flex items-center justify-between gap-3">
-              <label className="flex items-center gap-2 text-ui text-ink-2">
-                <input
-                  type="checkbox"
-                  className="size-4 accent-[var(--accent)]"
-                  checked={form.active}
-                  onChange={(e) => set('active', e.target.checked)}
-                />
-                Compte actif
-              </label>
+              {editingArchived ? (
+                <p className="text-ui text-muted">Compte archivé : restaurez-le depuis la liste pour le modifier.</p>
+              ) : (
+                <label className="flex items-center gap-2 text-ui text-ink-2">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-[var(--accent)]"
+                    checked={form.active}
+                    onChange={(e) => set('active', e.target.checked)}
+                  />
+                  Compte actif
+                </label>
+              )}
               <div className="flex gap-2">
                 <Button variant="ghost" onClick={() => setForm(null)}>
                   Annuler

@@ -6,10 +6,11 @@ import { AppShell, type ShellNavItem } from '../layout/AppShell';
 import { Dashboard } from './Dashboard';
 import { PartnersPanel } from './PartnersPanel';
 import { ProfilePanel } from './ProfilePanel';
+import { PilotagePanel } from './PilotagePanel';
 import { NewQuoteDialog } from './NewQuoteDialog';
 import { QuoteEditor } from './QuoteEditor';
 import { ArchitectureModal } from '../architecture/ArchitectureModal';
-import { Building2, FileText, Server, Users } from 'lucide-react';
+import { Building2, ChartColumn, FileText, Server, Users } from 'lucide-react';
 
 interface StaffAppProps {
   token: string;
@@ -18,7 +19,7 @@ interface StaffAppProps {
   onLogout: () => void;
 }
 
-type View = { name: 'quotes' } | { name: 'partners' } | { name: 'profile' } | { name: 'editor'; id: string };
+type View = { name: 'quotes' } | { name: 'partners' } | { name: 'pilotage' } | { name: 'profile' } | { name: 'editor'; id: string };
 
 const isTyping = (target: EventTarget | null) =>
   target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
@@ -36,13 +37,22 @@ export const StaffApp: React.FC<StaffAppProps> = ({ token, account, onAccountUpd
 
   const nav: ShellNavItem[] = [
     { key: 'quotes', label: 'Devis', icon: FileText },
+    ...(canManagePartners ? [{ key: 'pilotage', label: 'Pilotage', icon: ChartColumn }] : []),
     ...(canManagePartners ? [{ key: 'partners', label: account.role === 'owner' ? 'Clients' : 'Partenaires', icon: Users }] : []),
     { key: 'profile', label: 'Mes informations', icon: Building2 },
   ];
 
   const handleNavigate = async (key: string) => {
     if (view.name === 'editor') await flushRef.current?.();
-    setView(key === 'partners' ? { name: 'partners' } : key === 'profile' ? { name: 'profile' } : { name: 'quotes' });
+    setView(
+      key === 'partners'
+        ? { name: 'partners' }
+        : key === 'profile'
+        ? { name: 'profile' }
+        : key === 'pilotage' && canManagePartners
+        ? { name: 'pilotage' }
+        : { name: 'quotes' }
+    );
   };
 
   const handleLogout = async () => {
@@ -104,7 +114,7 @@ export const StaffApp: React.FC<StaffAppProps> = ({ token, account, onAccountUpd
         brandSub={isAdmin ? 'Pricing Studio' : account.tagline || 'Espace partenaire'}
         nav={nav}
         tools={isAdmin ? [{ key: 'architecture', label: 'Architecture', icon: Server, onSelect: () => setShowArchitecture(true) }] : []}
-        active={view.name === 'partners' ? 'partners' : view.name === 'profile' ? 'profile' : 'quotes'}
+        active={view.name === 'partners' ? 'partners' : view.name === 'profile' ? 'profile' : view.name === 'pilotage' ? 'pilotage' : 'quotes'}
         onNavigate={handleNavigate}
         accountName={account.contactName || account.name}
         accountEmail={account.email}
@@ -124,6 +134,9 @@ export const StaffApp: React.FC<StaffAppProps> = ({ token, account, onAccountUpd
           />
         )}
         {view.name === 'partners' && canManagePartners && <PartnersPanel token={token} account={account} />}
+        {view.name === 'pilotage' && canManagePartners && (
+          <PilotagePanel token={token} onOpen={(id) => setView({ name: 'editor', id })} />
+        )}
         {view.name === 'profile' && <ProfilePanel token={token} account={account} onUpdated={onAccountUpdated} />}
         {view.name === 'editor' && (
           <QuoteEditor

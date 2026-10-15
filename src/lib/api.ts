@@ -8,6 +8,8 @@ import type {
   QuoteData,
   QuoteStatus,
   ClientQuoteView,
+  DeliveryStatus,
+  PaymentStep,
 } from '../types/quote';
 
 export class ApiError extends Error {
@@ -56,6 +58,8 @@ export const ERROR_LABELS: Record<string, string> = {
   invalid_price_list: 'Grille de prix invalide : chaque prix doit être un montant positif.',
   price_list_required: 'Une grille de prix est requise pour un client du revendeur.',
   invalid_email: 'Adresse e-mail invalide.',
+  not_signed: "Le devis doit d'abord être signé.",
+  invalid_logo: 'Logo invalide : image PNG, JPEG ou WebP de 200 Ko maximum.',
   no_reseller: 'Aucun compte revendeur actif pour rattacher ce client.',
 };
 
@@ -89,6 +93,12 @@ export const changePassword = (token: string, oldPassword: string, newPassword: 
     p_new: newPassword,
   });
 
+/** Nom et logo du revendeur, lisibles avant connexion (écran de connexion) */
+export const getBrand = () => call<{ name?: string; logo?: string | null }>('app_brand', {}, false);
+
+/** `null` supprime le logo */
+export const saveLogo = (token: string, logo: string | null) => call<boolean>('app_logo_save', { p_token: token, p_logo: logo });
+
 export type AccountProfile = Pick<
   Account,
   'name' | 'tagline' | 'dailyRate' | 'contactName' | 'email' | 'phone' | 'address' | 'siret'
@@ -96,7 +106,7 @@ export type AccountProfile = Pick<
 
 /** Coordonnées et mentions légales modifiables par le titulaire du compte */
 export type OwnProfile = AccountProfile &
-  Required<Pick<Account, 'legalForm' | 'shareCapital' | 'rcs' | 'vatNumber' | 'website'>>;
+  Required<Pick<Account, 'legalForm' | 'shareCapital' | 'rcs' | 'vatNumber' | 'website' | 'paymentTerms' | 'latePenalties'>>;
 
 export const updateAccount = (token: string, p: OwnProfile) =>
   call<Account>('app_account_update', {
@@ -114,6 +124,8 @@ export const updateAccount = (token: string, p: OwnProfile) =>
     p_rcs: p.rcs,
     p_vat_number: p.vatNumber,
     p_website: p.website,
+    p_payment_terms: p.paymentTerms,
+    p_late_penalties: p.latePenalties,
   });
 
 // ------------------------------------------------------- password recovery --
@@ -175,6 +187,15 @@ export const savePartner = (
     p_price_list: options.priceList,
   });
 
+/** Désactive / réactive (`active`) ou archive / restaure (`archived`) un compte ; `null` conserve la valeur actuelle */
+export const setPartnerState = (token: string, id: string, state: { active: boolean | null; archived?: boolean | null }) =>
+  call<Account>('app_partner_set_state', {
+    p_token: token,
+    p_id: id,
+    p_active: state.active,
+    p_archived: state.archived ?? null,
+  });
+
 export const savePartnerPrices = (token: string, id: string, priceList: PriceList) =>
   call<Account>('app_partner_prices_save', { p_token: token, p_id: id, p_price_list: priceList });
 
@@ -211,6 +232,12 @@ export const saveQuote = (token: string, q: SaveQuoteInput) =>
     p_expected_updated_at: q.expectedUpdatedAt,
     p_account_id: q.accountId ?? null,
   });
+
+export const setQuoteProgress = (token: string, id: string, status: DeliveryStatus) =>
+  call<QuoteSummary>('app_quote_progress_set', { p_token: token, p_id: id, p_status: status });
+
+export const setQuotePayment = (token: string, id: string, step: PaymentStep, received: boolean) =>
+  call<QuoteSummary>('app_quote_payment_set', { p_token: token, p_id: id, p_step: step, p_received: received });
 
 export const deleteQuote = (token: string, id: string) =>
   call<boolean>('app_quote_delete', { p_token: token, p_id: id });

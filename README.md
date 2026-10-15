@@ -59,6 +59,14 @@ Un compte partenaire peut être un **client du revendeur** (`managed_by` = compt
 
 Chaque compte renseigne sa société, ses mentions légales (forme juridique, capital, SIRET, RCS, TVA intracommunautaire) et ses contacts : ils sont imprimés sur ses devis suivants.
 
+### Pilotage (revendeur et régie)
+
+- **Pilotage** : CA signé par mois, devis à relancer (envoyés depuis plus de 7 jours), encaissements restants, devis en réalisation, taux de signature par client. Exports CSV (devis, clients) au format Excel français.
+- **Suivi après signature** (dans le devis signé) : réalisation (à démarrer, en cours, livré) avec la date de livraison prévue = début + délai du devis en jours ouvrés ; échéances (à la commande, maquettes, mise en production) marquées reçues. Le client du revendeur peut les consulter, sans les modifier.
+- **Clients** : désactiver (accès coupé, historique conservé) ou archiver (masqué, restaurable).
+- **Logo** (Mes informations) : sur les devis, l'espace client et l'écran de connexion (celui du revendeur). Image PNG, JPEG ou WebP, réduite à 480 × 160 px.
+- **Conditions de paiement, pénalités de retard et mentions complémentaires** : valeurs par défaut par compte (Mes informations), modifiables devis par devis ; à défaut, les textes légaux standard.
+
 ---
 
 ## Accès
@@ -79,6 +87,7 @@ Les migrations sont dans `scripts/migrations/` et s'appliquent dans l'ordre :
 3. `003_email_password_auth.sql` : connexion e-mail + mot de passe, suppression de l’ancienne connexion par code, fermeture des tables héritées (sans suppression de données). Le nouveau front doit être déployé juste après.
 4. `004_reseller_price_lists.sql` : clients du revendeur et grille de prix par client (voir ci-dessous). À appliquer en même temps que le nouveau front.
 5. `005_reset_client_quote_legal_profile.sql` : réinitialisation du mot de passe par e-mail, devis créé au nom d'un client, mentions légales du compte. Le nouveau front doit être déployé en même temps.
+6. `006_pilotage_logo_terms_archive.sql` : date d'envoi, suivi de réalisation et d'encaissement, logo, conditions de paiement, archivage des clients. À appliquer en même temps que le nouveau front.
 
 ---
 

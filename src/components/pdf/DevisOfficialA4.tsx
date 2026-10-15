@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import type { PageModule, ClientMetadata, PricingSettings, QuoteCalculations } from '../../types/quote';
 import { formatEuros, formatDays, formatFrenchDate, formatPercent, addDays, getClientUnitPrice, displayQuoteNumber, paymentSchedule, EXTRA_RETOUCHES_ID } from '../../utils/formatters';
 import { getInitials } from '../../lib/initials';
+import { DEFAULT_LATE_PENALTIES, DEFAULT_PAYMENT_TERMS } from '../../data/terms';
 import { 
   FileText, 
   Printer, 
@@ -22,6 +23,8 @@ interface DevisOfficialA4Props {
   onSign?: (name: string, signatureDataUri: string) => Promise<{ success: boolean; error?: string; signedAt?: string }>;
   /** Devis déjà signé : la signature enregistrée remplace la zone de saisie */
   signed?: { by: string; at: string; signature: string | null } | null;
+  /** Logo de l'émetteur (data URL) : remplace la pastille d'initiales */
+  logo?: string | null;
 }
 
 export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
@@ -32,6 +35,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
   onClose,
   onSign,
   signed,
+  logo,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -186,12 +190,18 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
           {/* Émetteur : Roeum Mak (seul interlocuteur visible du client) */}
           <div className="space-y-1.5 max-w-sm">
             <div className="flex items-center space-x-2 mb-2">
-              <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white font-bold text-sm">
-                {getInitials(metadata.partnerCompany)}
-              </div>
-              <span className="text-base font-extrabold tracking-tight text-slate-900">
-                {metadata.partnerCompany.toUpperCase()}
-              </span>
+              {logo ? (
+                <img src={logo} alt={metadata.partnerCompany} className="h-10 max-w-[180px] object-contain" />
+              ) : (
+                <>
+                  <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white font-bold text-sm">
+                    {getInitials(metadata.partnerCompany)}
+                  </div>
+                  <span className="text-base font-extrabold tracking-tight text-slate-900">
+                    {metadata.partnerCompany.toUpperCase()}
+                  </span>
+                </>
+              )}
             </div>
             <p className="font-semibold text-slate-800">
               {metadata.partnerTagline}
@@ -334,7 +344,7 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
               ))}
             </ul>
             <div className="pt-2 text-[10px] text-slate-500">
-              Règlement par virement bancaire sous 30 jours date d'émission.
+              {metadata.paymentTerms || DEFAULT_PAYMENT_TERMS}
             </div>
           </div>
 
@@ -380,8 +390,13 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
             3. <strong>Livrables verrouillés</strong> : le périmètre ferme du présent devis est limité à {lockedUnitCount} livrable{lockedUnitCount > 1 ? 's' : ''}, soit {formatEuros(lockedScopeTotal)} HT, dans les termes exacts des descriptifs « Inclus au devis » ci-dessus. Tout élément non listé est hors périmètre et fera l'objet d'un avenant signé avant réalisation.
           </p>
           <p>
-            4. <strong>Pénalités de retard</strong> : Conformément aux articles L. 441-10 et D. 441-5 du Code de commerce, tout retard de règlement donne lieu de plein droit à des pénalités au taux légal en vigueur majoré de 10 points, ainsi qu’à une indemnité forfaitaire pour frais de recouvrement de 40 €.
+            4. <strong>Pénalités de retard</strong> : {metadata.latePenalties || DEFAULT_LATE_PENALTIES}
           </p>
+          {metadata.extraMentions && (
+            <p className="whitespace-pre-line">
+              5. <strong>Mentions complémentaires</strong> : {metadata.extraMentions}
+            </p>
+          )}
         </div>
 
         {/* Signature & Bon pour Accord Block */}

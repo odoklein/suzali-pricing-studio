@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Account, QuoteSummary, QuoteStatus } from '../../types/quote';
 import { listQuotes, deleteQuote, errorMessage } from '../../lib/api';
 import { formatEuros, formatFrenchDate } from '../../utils/formatters';
+import { DELIVERY_LABELS } from '../../utils/pilotage';
 import { cn } from '../../lib/cn';
 import { Button, IconButton } from '../ui/button';
 import { fieldControl, fieldSizes, Input } from '../ui/input';
@@ -258,6 +259,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, account, onOpen, on
                     {isStaff && <td className="px-5 py-3 text-ink-2">{q.accountName}</td>}
                     <td className="px-5 py-3">
                       <StatusBadge status={q.status} />
+                      {q.status === 'signed' && <p className="mt-1 text-xs text-muted">{DELIVERY_LABELS[q.deliveryStatus]}</p>}
                     </td>
                     <td className="tabular px-5 py-3 text-right font-mono text-ink">{formatEuros(q.totalHt)}</td>
                     <td className="px-5 py-3 text-xs text-muted">{formatFrenchDate(q.updatedAt)}</td>

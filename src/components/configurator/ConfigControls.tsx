@@ -3,7 +3,8 @@ import { ChevronDown } from 'lucide-react';
 import type { ClientMetadata } from '../../types/quote';
 import { cn } from '../../lib/cn';
 import { NumberInput } from '../ui/NumberInput';
-import { Field, Input, fieldControl, fieldSizes } from '../ui/input';
+import { Field, Input, Textarea, fieldControl, fieldSizes } from '../ui/input';
+import { DEFAULT_LATE_PENALTIES, DEFAULT_PAYMENT_TERMS } from '../../data/terms';
 import { Badge, Card } from '../ui/display';
 
 interface ConfigControlsProps {
@@ -139,6 +140,45 @@ export const ConfigControls: React.FC<ConfigControlsProps> = ({ metadata, onUpda
               <TextField label="SIRET" mono value={metadata.partnerSiret} onChange={(partnerSiret) => onUpdateMetadata({ partnerSiret })} />
               <TextField label="Adresse" value={metadata.partnerAddress} onChange={(partnerAddress) => onUpdateMetadata({ partnerAddress })} />
             </div>
+          </fieldset>
+          <fieldset className="min-w-0 space-y-3 md:col-span-2">
+            <Legend>Conditions de paiement et mentions</Legend>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <Field label="Conditions de paiement">
+                {(id) => (
+                  <Textarea
+                    id={id}
+                    rows={2}
+                    placeholder={DEFAULT_PAYMENT_TERMS}
+                    value={metadata.paymentTerms ?? ''}
+                    onChange={(e) => onUpdateMetadata({ paymentTerms: e.target.value })}
+                  />
+                )}
+              </Field>
+              <Field label="Pénalités de retard">
+                {(id) => (
+                  <Textarea
+                    id={id}
+                    rows={2}
+                    placeholder={DEFAULT_LATE_PENALTIES}
+                    value={metadata.latePenalties ?? ''}
+                    onChange={(e) => onUpdateMetadata({ latePenalties: e.target.value })}
+                  />
+                )}
+              </Field>
+            </div>
+            <Field label="Mentions complémentaires (facultatif)">
+              {(id) => (
+                <Textarea
+                  id={id}
+                  rows={2}
+                  placeholder="Clause particulière, conditions spécifiques à ce devis…"
+                  value={metadata.extraMentions ?? ''}
+                  onChange={(e) => onUpdateMetadata({ extraMentions: e.target.value })}
+                />
+              )}
+            </Field>
+            <p className="text-xs text-muted">Laissés vides, les textes par défaut s'impriment. Vos valeurs par défaut se règlent dans Mes informations.</p>
           </fieldset>
         </div>
       )}
