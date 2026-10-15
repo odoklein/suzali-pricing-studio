@@ -94,6 +94,11 @@ export function issuerMetadata(account: Account): Partial<ClientMetadata> {
     partnerPhone: account.phone,
     partnerAddress: account.address,
     partnerSiret: account.siret,
+    partnerLegalForm: account.legalForm ?? '',
+    partnerShareCapital: account.shareCapital ?? '',
+    partnerRcs: account.rcs ?? '',
+    partnerVat: account.vatNumber ?? '',
+    partnerWebsite: account.website ?? '',
   };
 }
 
@@ -132,8 +137,10 @@ export function modulesFromPriceList(list: PriceList): PageModule[] {
 }
 
 /** Données initiales d'un nouveau devis : grille de référence en forfait, tarif journalier du compte conservé pour le mode TJM */
-export function newQuoteData(account: Account): QuoteData {
-  const listed = account.managed && account.priceList ? account.priceList : null;
+export function newQuoteData(account: Account, client?: Account | null): QuoteData {
+  // les prix suivent la grille du client choisi (ou celle du compte connecté s'il est lui-même un client du revendeur)
+  const priced = client ?? account;
+  const listed = priced.managed && priced.priceList ? priced.priceList : null;
   const modules = listed ? modulesFromPriceList(listed) : initialModules.map((m) => ({ ...m }));
   const settings: PricingSettings = listed
     ? { ...initialSettings, tjmSuzali: 0, retouchUnitPrice: listed.retouchPrice }
@@ -144,10 +151,10 @@ export function newQuoteData(account: Account): QuoteData {
     projectName: 'Nouveau projet',
     quoteNumber: '',
     notes: '',
-    clientCompany: '',
-    clientContact: '',
-    clientEmail: '',
-    clientAddress: '',
+    clientCompany: client?.name ?? '',
+    clientContact: client?.contactName ?? '',
+    clientEmail: client?.email ?? '',
+    clientAddress: client?.address ?? '',
     issueDate: new Date().toISOString().split('T')[0],
   };
   return buildQuoteData(modules, settings, metadata);

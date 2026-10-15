@@ -31,6 +31,12 @@ export interface ClientMetadata {
   partnerPhone: string;
   partnerAddress: string;
   partnerSiret: string;
+  /** Mentions légales de l'émetteur (absentes des anciens devis) */
+  partnerLegalForm?: string;
+  partnerShareCapital?: string;
+  partnerRcs?: string;
+  partnerVat?: string;
+  partnerWebsite?: string;
   quoteNumber: string;
   issueDate: string;
   validityDays: number;
@@ -113,6 +119,12 @@ export interface Account {
   active: boolean;
   /** Mot de passe provisoire : à remplacer avant toute autre action */
   mustChangePassword?: boolean;
+  /** Mentions légales imprimées sur les devis */
+  legalForm?: string;
+  shareCapital?: string;
+  rcs?: string;
+  vatNumber?: string;
+  website?: string;
   /** Client du revendeur : ne voit jamais le prix d'achat et ne fixe aucun prix, il applique la grille du revendeur */
   managed?: boolean;
   /** Grille de prix d'un client du revendeur (absente pour les autres comptes) */
@@ -170,6 +182,11 @@ export interface Issuer {
   phone: string;
   address: string;
   siret: string;
+  legalForm?: string;
+  shareCapital?: string;
+  rcs?: string;
+  vatNumber?: string;
+  website?: string;
 }
 
 export interface ClientQuoteView {

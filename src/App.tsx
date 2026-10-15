@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import type { Account } from './types/quote';
 import { login, getSession, logout, onUnauthorized } from './lib/api';
-import { loadToken, saveToken, clearToken, readClientToken, clearHash } from './lib/session';
+import { loadToken, saveToken, clearToken, readClientToken, readResetToken, clearHash } from './lib/session';
 import { PortalGate } from './components/portal/PortalGate';
 import { PasswordChangeGate } from './components/portal/PasswordChangeGate';
+import { ResetPasswordPage } from './components/portal/ResetPasswordPage';
+import { ForgotPassword } from './components/portal/ForgotPassword';
 import { ClientPortal } from './components/client/ClientPortal';
 import { StaffApp } from './components/staff/StaffApp';
 
@@ -17,10 +19,15 @@ export const App: React.FC = () => {
   const [booting, setBooting] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
   const [clientToken, setClientToken] = useState<string | null>(readClientToken);
+  const [resetToken, setResetToken] = useState<string | null>(readResetToken);
+  const [requestingReset, setRequestingReset] = useState(false);
 
   // Lien client (#/devis/<jeton>) : espace client, indépendant de toute session interne
   useEffect(() => {
-    const onHash = () => setClientToken(readClientToken());
+    const onHash = () => {
+      setClientToken(readClientToken());
+      setResetToken(readResetToken());
+    };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
@@ -107,6 +114,18 @@ export const App: React.FC = () => {
 
   if (clientToken) {
     return <ClientPortal key={clientToken} shareToken={clientToken} />;
+  }
+
+  // Lien reçu par e-mail (#/reset/<jeton>) : le jeton quitte l'adresse dès l'ouverture
+  if (resetToken) {
+    const leave = () => {
+      clearHash();
+      setResetToken(null);
+    };
+    if (requestingReset) {
+      return <ForgotPassword onBack={() => { setRequestingReset(false); leave(); }} />;
+    }
+    return <ResetPasswordPage token={resetToken} onDone={leave} onRequestNew={() => setRequestingReset(true)} />;
   }
 
   if (booting) {

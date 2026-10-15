@@ -3,6 +3,7 @@ import { Field, Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { Notice } from '../ui/display';
 import { AuthLayout } from './AuthLayout';
+import { ForgotPassword } from './ForgotPassword';
 import { PasswordField } from './PasswordField';
 
 interface PortalGateProps {
@@ -22,6 +23,7 @@ export const PortalGate: React.FC<PortalGateProps> = ({ onSubmit, notice }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<{ code: string; n: number } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [forgot, setForgot] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,6 +36,8 @@ export const PortalGate: React.FC<PortalGateProps> = ({ onSubmit, notice }) => {
     setError((prev) => ({ code: result, n: (prev?.n ?? 0) + 1 }));
     setPassword('');
   };
+
+  if (forgot) return <ForgotPassword initialEmail={email} onBack={() => setForgot(false)} />;
 
   return (
     <AuthLayout
@@ -67,6 +71,16 @@ export const PortalGate: React.FC<PortalGateProps> = ({ onSubmit, notice }) => {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
+
+        <div className="-mt-1 text-right">
+          <button
+            type="button"
+            onClick={() => setForgot(true)}
+            className="rounded-xs text-xs font-medium text-muted underline-offset-4 outline-hidden hover:text-ink hover:underline focus-visible:shadow-[var(--ring)]"
+          >
+            Mot de passe oublié ?
+          </button>
+        </div>
 
         {error && (
           <div key={error.n} className="animate-shake">

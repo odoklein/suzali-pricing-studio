@@ -4,6 +4,7 @@ import type { Account, PartnerAccount } from '../../types/quote';
 import { listPartners, savePartner, errorMessage, type AccountProfile } from '../../lib/api';
 import { formatEuros } from '../../utils/formatters';
 import { getInitials } from '../../lib/initials';
+import { generatePassword } from '../../lib/password';
 import { completePriceList } from '../../data/priceModel';
 import { PriceListDialog } from './PriceListDialog';
 import { Button } from '../ui/button';
@@ -36,13 +37,6 @@ const emptyForm: FormState = {
   active: true,
   password: '',
   managed: false,
-};
-
-/** Mot de passe aléatoire de 12 caractères, sans caractères ambigus */
-const generatePassword = (): string => {
-  const alphabet = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const bytes = crypto.getRandomValues(new Uint8Array(12));
-  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
 };
 
 const th = 'px-5 py-2.5 text-xs font-medium text-muted';

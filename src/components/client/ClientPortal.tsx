@@ -52,6 +52,11 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({ shareToken }) => {
       partnerPhone: issuer.phone,
       partnerAddress: issuer.address,
       partnerSiret: issuer.siret,
+      partnerLegalForm: issuer.legalForm ?? '',
+      partnerShareCapital: issuer.shareCapital ?? '',
+      partnerRcs: issuer.rcs ?? '',
+      partnerVat: issuer.vatNumber ?? '',
+      partnerWebsite: issuer.website ?? '',
     };
   }, [quote]);
 

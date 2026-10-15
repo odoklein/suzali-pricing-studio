@@ -33,6 +33,14 @@ export function readClientToken(): string | null {
   return m ? m[1] : null;
 }
 
+/** Lien de réinitialisation du mot de passe : #/reset/<jeton> */
+const RESET_HASH = /^#\/reset\/([a-f0-9]{64})$/i;
+
+export function readResetToken(): string | null {
+  const m = RESET_HASH.exec(window.location.hash);
+  return m ? m[1] : null;
+}
+
 export function buildClientLink(shareToken: string): string {
   return `${window.location.origin}${window.location.pathname}#/devis/${shareToken}`;
 }

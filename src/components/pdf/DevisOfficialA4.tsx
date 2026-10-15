@@ -199,9 +199,20 @@ export const DevisOfficialA4: React.FC<DevisOfficialA4Props> = ({
             <p className="text-slate-600 text-[11px] leading-tight">
               {metadata.partnerContact}<br />
               {metadata.partnerAddress && <>{metadata.partnerAddress}<br /></>}
+              {(metadata.partnerLegalForm || metadata.partnerShareCapital) && (
+                <>
+                  {[metadata.partnerLegalForm, metadata.partnerShareCapital && `au capital de ${metadata.partnerShareCapital}`]
+                    .filter(Boolean)
+                    .join(' ')}
+                  <br />
+                </>
+              )}
               {metadata.partnerSiret && <>SIRET : {metadata.partnerSiret}<br /></>}
+              {metadata.partnerRcs && <>RCS : {metadata.partnerRcs}<br /></>}
+              {metadata.partnerVat && <>TVA intracommunautaire : {metadata.partnerVat}<br /></>}
               {metadata.partnerPhone && <>Tél : {metadata.partnerPhone}<br /></>}
               Email : {metadata.partnerEmail}
+              {metadata.partnerWebsite && <><br />{metadata.partnerWebsite}</>}
             </p>
           </div>
 

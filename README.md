@@ -44,6 +44,21 @@ Un compte partenaire peut être un **client du revendeur** (`managed_by` = compt
 - Les comptes créés par le revendeur sont toujours des clients ; la régie choisit, compte par compte, entre *Partenaire* (fixe ses prix, voit son prix d'achat) et *Client du revendeur*.
 - Une modification de grille s'applique aux prochains enregistrements de devis non signés du client.
 
+### Mot de passe oublié
+
+- « Mot de passe oublié ? » sur l'écran de connexion envoie un lien (`#/reset/<jeton>`) par e-mail. Le lien est valable 1 heure, ne sert qu'une fois, et 3 demandes par compte et par heure au maximum.
+- La réponse est identique que l'adresse existe ou non. Seule une empreinte du jeton est stockée ; changer le mot de passe déconnecte tous les appareils et débloque le compte.
+- L'envoi passe par la fonction Netlify `netlify/functions/request-reset.mjs` (e-mail via [Resend](https://resend.com)). Variables à définir dans Netlify : `DATABASE_URL`, `RESEND_API_KEY`, `MAIL_FROM` (expéditeur vérifié chez Resend) et, si besoin, `SITE_URL`.
+- En local (`npm run dev`) la fonction n'existe pas : utiliser `netlify dev` pour tester l'envoi.
+
+### Devis pour un client
+
+« Nouveau devis » (revendeur et régie) demande d'abord le client : un client existant (le devis est créé dans son espace, avec sa grille de prix et ses coordonnées), un nouveau client (compte créé avec un mot de passe provisoire) ou aucun client. Pour un client du revendeur, l'émetteur affiché au client final est le revendeur.
+
+### Mes informations
+
+Chaque compte renseigne sa société, ses mentions légales (forme juridique, capital, SIRET, RCS, TVA intracommunautaire) et ses contacts : ils sont imprimés sur ses devis suivants.
+
 ---
 
 ## Accès
@@ -63,6 +78,7 @@ Les migrations sont dans `scripts/migrations/` et s'appliquent dans l'ordre :
 2. `002_account_update.sql` : mise à jour du profil.
 3. `003_email_password_auth.sql` : connexion e-mail + mot de passe, suppression de l’ancienne connexion par code, fermeture des tables héritées (sans suppression de données). Le nouveau front doit être déployé juste après.
 4. `004_reseller_price_lists.sql` : clients du revendeur et grille de prix par client (voir ci-dessous). À appliquer en même temps que le nouveau front.
+5. `005_reset_client_quote_legal_profile.sql` : réinitialisation du mot de passe par e-mail, devis créé au nom d'un client, mentions légales du compte. Le nouveau front doit être déployé en même temps.
 
 ---
 
